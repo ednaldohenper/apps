@@ -1,0 +1,39 @@
+name: Instagram Daily
+
+# Roda todo dia de madrugada (06:00 horário de Brasília = 09:00 UTC)
+# e também pode ser disparado manualmente na aba Actions.
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Coletar métricas e atualizar dados
+        env:
+          APP_DIR:       instagram
+          IG_ID:         ${{ secrets.IG_ID }}
+          IG_TOKEN:      ${{ secrets.IG_TOKEN }}
+          DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
+          FB_APP_ID:     ${{ secrets.FB_APP_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+        run: node scripts/instagram-fetch.mjs
+
+      - name: Salvar no repositório
+        run: |
+          git config user.name  "instagram-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add instagram/data.enc .secrets/instagram-token.enc
+          git commit -m "instagram: atualização diária ($(date -u +%Y-%m-%d))" || echo "Sem mudanças"
+          git push

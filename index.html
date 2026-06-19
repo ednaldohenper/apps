@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0d12">
+<title>Meus Sistemas</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+   background:radial-gradient(1200px 600px at 80% -10%,#1a1f33 0%,transparent 60%),#0b0d12;
+   color:#eef1f7;min-height:100vh;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:64px 20px}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.5px}
+  .sub{color:#9aa3b4;margin:8px 0 36px;font-size:15px}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  a.app{display:block;text-decoration:none;color:inherit;
+   background:linear-gradient(180deg,#161a24,#11141c);border:1px solid #262c3a;border-radius:18px;
+   padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.35);transition:.16s}
+  a.app:hover{transform:translateY(-3px);border-color:#7c5cff}
+  .ic{font-size:30px}
+  .nm{font-weight:700;font-size:17px;margin:12px 0 4px}
+  .ds{color:#9aa3b4;font-size:13px}
+  .soon{opacity:.5;pointer-events:none}
+  .tag{display:inline-block;font-size:11px;color:#9aa3b4;border:1px solid #262c3a;border-radius:999px;padding:2px 9px;margin-top:12px}
+  .foot{margin-top:48px;color:#6b7280;font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚡ Meus Sistemas</h1>
+  <div class="sub">Central de ferramentas — Ednaldo Henper</div>
+  <div class="grid">
+    <a class="app" href="instagram/">
+      <div class="ic">📊</div>
+      <div class="nm">Inteligência Instagram</div>
+      <div class="ds">Métricas ao vivo, recomendações e gestão de metas.</div>
+      <span class="tag">ativo</span>
+    </a>
+    <a class="app soon" href="#">
+      <div class="ic">➕</div>
+      <div class="nm">Próximo sistema</div>
+      <div class="ds">Espaço reservado para a próxima ideia.</div>
+      <span class="tag">em breve</span>
+    </a>
+  </div>
+  <div class="foot">Hospedado no GitHub Pages · dados criptografados</div>
+</div>
+</body>
+</html>
