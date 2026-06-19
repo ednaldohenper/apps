@@ -78,18 +78,28 @@ async function seriesMetric(token,name,since,until){ // série diária (time_ser
     return vals.map(v=>({d:(v.end_time||"").slice(0,10), v:v.value??0}));
   }catch(e){ console.error(`série ${name}: ${e.message}`); return []; }
 }
-async function buildSeries(token){ // últimos ~90 dias em 3 janelas de 30 (teto da API)
+async function buildSeries(token){ // alcance diário ~90d (só "reach" aceita time_series)
   const DAY=86400, now=Math.floor(Date.now()/1000), byDate={};
   for(let c=0;c<3;c++){
     const until=now-c*30*DAY, since=until-30*DAY;
-    for(const m of ["reach","views","total_interactions"]){
-      for(const {d,v} of await seriesMetric(token,m,since,until)){
-        if(!d) continue; (byDate[d]=byDate[d]||{d}); byDate[d][m]=v;
-      }
-    }
+    for(const {d,v} of await seriesMetric(token,"reach",since,until)){ if(d) byDate[d]=v; }
   }
-  return Object.values(byDate).sort((a,b)=>a.d<b.d?-1:1)
-    .map(o=>({d:o.d, reach:o.reach??0, views:o.views??0, inter:o.total_interactions??0}));
+  return Object.entries(byDate).sort((a,b)=>a[0]<b[0]?-1:1).map(([d,reach])=>({d,reach}));
+}
+async function totalOver(token,name,days){ // soma do período via total_value, em janelas de <=30 dias
+  const DAY=86400; let until=Math.floor(Date.now()/1000), left=days, total=0, got=false;
+  while(left>0){ const span=Math.min(30,left), since=until-span*DAY;
+    try{ const j=await api(token,`${IG_ID}/insights?metric=${name}&metric_type=total_value&period=day&since=${since}&until=${until}`);
+      const v=j?.data?.[0]?.total_value?.value; if(v!=null){ total+=v; got=true; }
+    }catch(e){ console.error(`total ${name}/${days}d: ${e.message}`); }
+    until=since; left-=span;
+  }
+  return got?total:null;
+}
+async function buildTotals(token){ // totais de views e interações para 7/28/90 dias
+  const out={};
+  for(const days of [7,28,90]) out[days]={ views:await totalOver(token,"views",days), inter:await totalOver(token,"total_interactions",days) };
+  return out;
 }
 /* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
 function aiStats(media){
@@ -111,9 +121,10 @@ function buildDossier(b){
     salvamentos:x.saves,compart:x.shares,coment:x.comments,legenda:(x.cap||"").slice(0,140)}));
   const historico=Object.values(b.history||{}).sort((a,c)=>a.date<c.date?-1:1)
     .map(h=>({data:h.date,seguidores:h.followers,alcance28:h.reach28,views28:h.views28,interacoes28:h.inter28}));
-  const serie=b.series||[]; const tot=k=>serie.reduce((s,x)=>s+(x[k]||0),0);
-  const tendencia90={dias:serie.length, views_total:tot("views"), interacoes_total:tot("inter"),
-    alcance_medio_diario:serie.length?Math.round(tot("reach")/serie.length):0, serie_diaria:serie};
+  const serie=b.series||[]; const t90=(b.totals||{})["90"]||{};
+  const tendencia90={dias:serie.length,
+    alcance_medio_diario:serie.length?Math.round(serie.reduce((s,x)=>s+(x.reach||0),0)/serie.length):0,
+    views_total_90d:t90.views??null, interacoes_total_90d:t90.inter??null, alcance_diario:serie};
   return {perfil:{nome:p.name,usuario:p.username,seguidores:p.followers_count,posts:p.media_count},
     estatisticas:aiStats(b.media||[]),historico_diario:historico,tendencia_90d:tendencia90,posts};
 }
@@ -225,6 +236,7 @@ async function main(){
   const mediaR =await api(token,`${IG_ID}/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,media_url,thumbnail_url,like_count,comments_count,children{media_url,thumbnail_url,media_type},insights.metric(reach,views,total_interactions,saved,shares)&limit=100`).catch(()=>({data:[]}));
   const media=(mediaR.data||[]).map(parsePost);
   const series=await buildSeries(token).catch(()=>[]);
+  const totals=await buildTotals(token).catch(()=>({}));
   const demoData={ city:await demo(token,"city").catch(()=>[]),
                    gender:await demo(token,"gender").catch(()=>[]),
                    age:await demo(token,"age").catch(()=>[]) };
@@ -240,7 +252,7 @@ async function main(){
     reachDay:accMetric(accDay,"reach"), viewsDay:accMetric(accDay,"views"),
     profileViews:accMetric(accDay,"profile_views"), engaged:accMetric(accDay,"accounts_engaged")};
 
-  const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, demo:demoData, history };
+  const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, demo:demoData, history };
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
   fs.mkdirSync(DIR,{recursive:true});
   fs.writeFileSync(DATA, encrypt(bundle,PASS));

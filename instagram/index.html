@@ -230,6 +230,7 @@ function build(){
   STATE.mediaAll=(B.media||[]).map(p=>{const d=new Date(p.ts);const er=p.reach>0?p.inter/p.reach*100:0;return{...p,date:d,er};});
   STATE.media=STATE.mediaAll;
   STATE.series=(B.series||[]).map(x=>({...x,date:new Date(x.d+"T12:00:00")}));
+  STATE.totals=B.totals||{};
   STATE.history=Object.values(B.history||{}).sort((a,b)=>a.date<b.date?-1:1);
 }
 function histArr(){return STATE.history;}
@@ -258,13 +259,17 @@ function miniLine(v,color){const w=300,ht=60,pad=6,mn=Math.min(...v),mx=Math.max
 function renderSeries(){
   const host=$("#seriesChart");if(!host)return;const {from,to}=periodRange();
   const f=(STATE.series||[]).filter(x=>x.date>=from&&x.date<=to);
-  if(f.length<2){host.innerHTML=`<div class="empty">A tendência diária da conta aparece quando o robô acumular a série (até ~90 dias). Volte após as próximas coletas.</div>`;return;}
-  const sum=k=>f.reduce((a,x)=>a+(x[k]||0),0);
-  const cards=[
-    {t:"Alcance · média/dia",v:fmt(Math.round(sum("reach")/f.length)),vals:f.map(x=>x.reach),c:"#7c5cff",note:"contas únicas/dia (alcance não se soma)"},
-    {t:"Visualizações · total",v:fmt(sum("views")),vals:f.map(x=>x.views),c:"#4ad0ff",note:"soma do período"},
-    {t:"Interações · total",v:fmt(sum("inter")),vals:f.map(x=>x.inter),c:"#2ecc71",note:"soma do período"}];
-  host.innerHTML=cards.map(c=>`<div class="card kpi"><div class="lbl">${c.t}</div><div class="val" style="font-size:24px">${c.v}</div>${miniLine(c.vals,c.c)}<div class="sub">${c.note}</div></div>`).join("");}
+  const isPreset=!PERIOD.from&&!PERIOD.to;
+  const tot=isPreset?((STATE.totals||{})[PERIOD.days]||null):null;
+  let reachCard;
+  if(f.length>=2){const avg=Math.round(f.reduce((a,x)=>a+(x.reach||0),0)/f.length);
+    reachCard=`<div class="card kpi"><div class="lbl">Alcance · média/dia</div><div class="val" style="font-size:24px">${fmt(avg)}</div>${miniLine(f.map(x=>x.reach),"#7c5cff")}<div class="sub">contas únicas/dia no período</div></div>`;}
+  else reachCard=`<div class="card kpi"><div class="lbl">Alcance · média/dia</div><div class="val" style="font-size:24px">—</div><div class="sub">acumulando a série diária…</div></div>`;
+  const vc=v=>v==null?"—":fmt(v);
+  const note=isPreset?"total do período":"total disponível em 7/28/90D";
+  host.innerHTML=reachCard+
+    `<div class="card kpi"><div class="lbl">Visualizações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.views)}</div><div class="sub">${note}</div></div>`+
+    `<div class="card kpi"><div class="lbl">Interações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.inter)}</div><div class="sub">${note}</div></div>`;}
 
 /* ===== render (mesma lógica do painel local) ===== */
 function renderAll(){renderHeader();renderKPIs();renderGrowth();renderAI();renderAudience();renderGoals();renderHistory();applyPeriod();
