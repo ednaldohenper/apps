@@ -62,9 +62,12 @@ async function api(token, p){
 }
 function accMetric(d,n){ return (d?.data||[]).find(x=>x.name===n)?.total_value?.value ?? null; }
 async function acc28One(token,name){ // 28 dias, métrica a métrica (uma falha não derruba as outras)
-  const j=await api(token,`${IG_ID}/insights?metric=${name}&period=days_28&metric_type=total_value`).catch(()=>null);
-  const v=j?.data?.[0]?.total_value?.value;
-  return v==null?null:{name,total_value:{value:v}};
+  try{
+    const j=await api(token,`${IG_ID}/insights?metric=${name}&period=days_28&metric_type=total_value`);
+    const v=j?.data?.[0]?.total_value?.value;
+    if(v==null) console.error(`28d ${name}: resposta sem valor -> ${JSON.stringify(j?.data?.[0]||j)}`);
+    return v==null?null:{name,total_value:{value:v}};
+  }catch(e){ console.error(`28d ${name}: ${e.message}`); return null; }
 }
 /* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
 function aiStats(media){
