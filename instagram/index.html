@@ -98,6 +98,7 @@
   </header>
   <nav class="tabs" id="tabs">
     <div class="tab active" data-t="overview">Visão Geral</div>
+    <div class="tab" data-t="ai">Diagnóstico</div>
     <div class="tab" data-t="diag">Inteligência</div>
     <div class="tab" data-t="content">Conteúdo</div>
     <div class="tab" data-t="audience">Audiência</div>
@@ -111,6 +112,9 @@
     <div class="card"><div id="growthChart"></div></div>
     <div class="sectitle">🧠 Inteligência & Recomendações <span class="tag">dos seus dados</span></div>
     <div id="recs"></div>
+  </section>
+  <section id="ai">
+    <div id="aiBody"></div>
   </section>
   <section id="diag">
     <div id="diagBody"></div>
@@ -210,7 +214,7 @@ function build(){
 function histArr(){return STATE.history;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderKPIs();renderGrowth();renderRecs();renderDiag();renderContent();renderAudience();renderGoals();renderHistory();
+function renderAll(){renderHeader();renderKPIs();renderGrowth();renderRecs();renderAI();renderDiag();renderContent();renderAudience();renderGoals();renderHistory();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -334,6 +338,22 @@ function renderHistory(){const h=histArr();
      <td class="num">${d==null?"—":`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'+':''}${fmt(d)}</span>`}</td>
      <td class="num">${fmt(x.reach28)}</td><td class="num">${fmt(x.views28)}</td><td class="num">${fmt(x.inter28)}</td></tr>`;}).join("");}
 
+/* ===== Diagnóstico com IA (lê o seu método do vault + os dados) ===== */
+function renderAI(){
+  const a=B.ai, host=$("#aiBody");
+  if(!a){ host.innerHTML=`<div class="empty">O <b>diagnóstico com IA</b> aparece depois de cadastrar o secret <b>ANTHROPIC_API_KEY</b> no repositório (e o <b>VAULT_TOKEN</b> para a IA ler o seu método ao vivo) e rodar o robô. Ele lê as suas tendências pela lente do seu método e escreve uma análise estratégica todo dia.</div>`; return; }
+  const recs=arr=>(arr||[]).map(r=>`<div class="rec"><div class="ic">•</div><div><h4>${r.titulo||""}</h4><p>${r.texto||""}</p></div></div>`).join("");
+  let h="";
+  if(a.resumo) h+=`<div class="card" style="border-color:var(--acc)"><div class="sectitle" style="margin-top:0">🧭 Leitura do momento</div><p style="font-size:15px;line-height:1.6">${a.resumo}</p></div>`;
+  if(a.tendencias&&a.tendencias.length) h+=`<div class="sectitle">📈 Tendências</div>${recs(a.tendencias)}`;
+  if(a.o_que_funciona&&a.o_que_funciona.length) h+=`<div class="sectitle">✅ O que está funcionando</div>${recs(a.o_que_funciona)}`;
+  if(a.atencao&&a.atencao.length) h+=`<div class="sectitle">⚠️ Pontos de atenção</div>${recs(a.atencao)}`;
+  if(a.pauta&&a.pauta.length) h+=`<div class="card"><div class="sectitle" style="margin-top:0">📝 Pauta da semana</div><ul style="margin:0;padding-left:20px;line-height:1.9;font-size:14px">${a.pauta.map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+  if(a.leitura_comportamental) h+=`<div class="card"><div class="sectitle" style="margin-top:0">🧠 Leitura comportamental</div><p style="font-size:14px;line-height:1.6;color:var(--mut)">${a.leitura_comportamental}</p></div>`;
+  h+=`<div class="foot">Diagnóstico gerado por IA em ${a.generated?new Date(a.generated).toLocaleString("pt-BR"):"—"}${a.model?" · "+a.model:""}</div>`;
+  host.innerHTML=h;
+}
+
 /* ===== Inteligência / Diagnóstico — análise local dos seus dados (sem IA) ===== */
 const STOP_PT=new Set("para com uma uns umas dos das que como mais mas sem sobre quando onde qual quais isso este esta esse essa aquele aquela voce seus suas meu minha tem ser nao sim voce nos nas pra pro por ele ela eles elas the and for you your".split(/\s+/));
 const CTA_RE=/(salv\w*|comenta\w*|comente\w*|compartilh\w*|marca\w*|marque\w*|arrast\w*|clica\w*|clique\w*|\blink\b|baix\w*|inscrev\w*|acesse\w*|envie\w*|chama\w*|garant\w*)/i;
@@ -375,7 +395,7 @@ function renderDiag(){
 }
 
 /* tabs */
-const SEC={overview:"overview",diag:"diag",content:"content_",audience:"audience",goals:"goals",history:"history"};
+const SEC={overview:"overview",ai:"ai",diag:"diag",content:"content_",audience:"audience",goals:"goals",history:"history"};
 $("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");
   document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));$("#"+SEC[t.dataset.t]).classList.add("active");});

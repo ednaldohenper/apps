@@ -20,6 +20,17 @@ jobs:
         with:
           node-version: "20"
 
+      # Traz o vault AO VIVO (método sempre atual) para a IA usar como lente.
+      # Opcional: se o secret VAULT_TOKEN não existir, este passo falha sem quebrar
+      # o restante — a IA cai no contexto.md commitado.
+      - name: Trazer contexto do vault
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: ednaldohenper/obsidian-vault
+          token: ${{ secrets.VAULT_TOKEN }}
+          path: vault
+
       - name: Coletar métricas e atualizar dados
         env:
           APP_DIR:       instagram
@@ -28,6 +39,8 @@ jobs:
           DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
           FB_APP_ID:     ${{ secrets.FB_APP_ID }}
           FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VAULT_DIR:     vault
         run: node scripts/instagram-fetch.mjs
 
       - name: Salvar no repositório

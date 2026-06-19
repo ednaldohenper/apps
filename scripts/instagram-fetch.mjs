@@ -66,6 +66,77 @@ async function acc28One(token,name){ // 28 dias, métrica a métrica (uma falha 
   const v=j?.data?.[0]?.total_value?.value;
   return v==null?null:{name,total_value:{value:v}};
 }
+/* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
+function aiStats(media){
+  const r=media.map(p=>p.reach).filter(x=>x>0).sort((a,b)=>a-b);
+  const medianaAlcance=r.length?r[Math.floor(r.length/2)]:0;
+  const byT={}; media.forEach(p=>{(byT[p.type]=byT[p.type]||[]).push(p);});
+  const formatos=Object.entries(byT).map(([t,a])=>({formato:t,posts:a.length,
+    alcanceMedio:Math.round(a.reduce((s,x)=>s+x.reach,0)/a.length),
+    salvMedio:Math.round(a.reduce((s,x)=>s+x.saves,0)/a.length)})).sort((a,b)=>b.alcanceMedio-a.alcanceMedio);
+  const STOP=new Set("para com uma dos das que como mais mas sem sobre quando onde qual quais isso este esta esse essa voce seus suas meu minha tem ser nao sim nas nos pra pro por ele ela eles elas".split(/\s+/));
+  const freq={}; media.forEach(p=>{const seen=new Set();(p.cap||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9#\s]/g," ").split(/\s+/).forEach(w=>{if(w.length<4||STOP.has(w)||seen.has(w))return;seen.add(w);(freq[w]=freq[w]||{n:0,r:0});freq[w].n++;freq[w].r+=p.reach;});});
+  const temas=Object.entries(freq).filter(([w,o])=>o.n>=2).map(([w,o])=>({tema:w,vezes:o.n,alcanceMedio:Math.round(o.r/o.n)})).sort((a,b)=>b.alcanceMedio-a.alcanceMedio).slice(0,10);
+  return {medianaAlcance,formatos,temas};
+}
+function buildDossier(b){
+  const p=b.profile;
+  const posts=(b.media||[]).slice().sort((a,c)=> (a.ts<c.ts?-1:1)).map(x=>({
+    data:(x.ts||"").slice(0,10),tipo:x.type,alcance:x.reach,views:x.views,interacoes:x.inter,
+    salvamentos:x.saves,compart:x.shares,coment:x.comments,legenda:(x.cap||"").slice(0,140)}));
+  const historico=Object.values(b.history||{}).sort((a,c)=>a.date<c.date?-1:1)
+    .map(h=>({data:h.date,seguidores:h.followers,alcance28:h.reach28,views28:h.views28,interacoes28:h.inter28}));
+  return {perfil:{nome:p.name,usuario:p.username,seguidores:p.followers_count,posts:p.media_count},
+    estatisticas:aiStats(b.media||[]),historico_diario:historico,posts};
+}
+function loadContext(){
+  // Lê o método AO VIVO do vault (se montado em VAULT_DIR); senão usa o contexto.md commitado.
+  const dir=process.env.VAULT_DIR;
+  const files=(process.env.CONTEXTO_FILES||[
+    "Estudo para modelar conteudo/REGRAS — Copy Humanizada e Vitrine que Vende.md",
+    "Fichas/FICHA — METODO MAMAN CONTEUDO VIRAL.md",
+    "CLAUDE.md"
+  ].join("\n")).split(/\n/).map(s=>s.trim()).filter(Boolean);
+  if(dir && fs.existsSync(dir)){
+    const out=[]; let total=0;
+    for(const f of files){
+      try{ let t=fs.readFileSync(path.join(dir,f),"utf8");
+        if(t.length>6000) t=t.slice(0,6000)+"\n…(trecho)";
+        if(total+t.length>16000) break; total+=t.length;
+        out.push(`\n\n===== ${f} =====\n${t}`);
+      }catch{}
+    }
+    if(out.length){ console.log(`Contexto: ${out.length} arquivo(s) lidos do vault ao vivo.`); return out.join(""); }
+    console.error("VAULT_DIR existe mas nenhum arquivo de método foi lido — caindo para contexto.md.");
+  }
+  try{ console.log("Contexto: contexto.md (fallback)."); return fs.readFileSync(new URL("./contexto.md",import.meta.url),"utf8"); }catch{ return ""; }
+}
+async function aiDiagnosis(bundle, prevAi){
+  const key=process.env.ANTHROPIC_API_KEY;
+  if(!key){ console.log("Sem ANTHROPIC_API_KEY — diagnóstico de IA pulado (resto do painel segue normal)."); return prevAi||null; }
+  const model=process.env.AI_MODEL||"claude-opus-4-8";
+  const contexto=loadContext();
+  const system=`${contexto}\n\nVocê é o motor de análise de um painel de Instagram do Ednaldo. Escreva em português do Brasil, no tom dele (cientista do comportamento + estrategista; NUNCA "coach"). Sua tarefa é interpretar TENDÊNCIAS ao longo do tempo e o comportamento da audiência — não repetir números que o painel já mostra. Use o método acima (GNC, Maman, regras de copy, vitrine vende o destino) como lente. Baseie cada afirmação nos dados.`;
+  const instr=`Analise os dados (perfil, estatísticas, histórico diário e posts em ordem cronológica) e devolva SOMENTE um JSON válido, sem nada fora do JSON, neste formato:
+{"resumo":"2-4 frases: momento da conta e a tendência principal","tendencias":[{"titulo":"...","texto":"..."}],"o_que_funciona":[{"titulo":"...","texto":"..."}],"atencao":[{"titulo":"...","texto":"..."}],"pauta":["ideia de conteúdo específica p/ a próxima semana usando ganchos/gatilhos do Maman e temas que performam","..."],"leitura_comportamental":"1 parágrafo: o que salvamentos/compartilhamentos/temas revelam sobre a relação da audiência com o conteúdo"}
+Regras: 2 a 4 itens por lista; 3 a 5 ideias em "pauta"; cite números/temas reais; se o histórico diário tiver poucos dias, leia a tendência pela evolução dos posts ao longo das datas.
+
+DADOS:
+${JSON.stringify(buildDossier(bundle))}`;
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model,max_tokens:4096,system,messages:[{role:"user",content:instr}]})});
+    const j=await res.json();
+    if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+    const text=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
+    const m=text.match(/\{[\s\S]*\}/);
+    const parsed=JSON.parse(m?m[0]:text);
+    console.log(`Diagnóstico de IA gerado (${model}).`);
+    return {generated:new Date().toISOString(),model,...parsed};
+  }catch(e){ console.error("Falha no diagnóstico de IA (mantendo o anterior):",e.message); return prevAi||null; }
+}
+
 // capa: vídeo/reels -> thumbnail_url; imagem -> media_url; carrossel -> 1º filho
 function coverOf(p){
   if(p.thumbnail_url) return p.thumbnail_url;
@@ -140,6 +211,7 @@ async function main(){
     profileViews:accMetric(accDay,"profile_views"), engaged:accMetric(accDay,"accounts_engaged")};
 
   const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, demo:demoData, history };
+  bundle.ai=await aiDiagnosis(bundle, prev.ai);
   fs.mkdirSync(DIR,{recursive:true});
   fs.writeFileSync(DATA, encrypt(bundle,PASS));
   console.log(`OK — ${profile.username}: ${profile.followers_count} seguidores · ${Object.keys(history).length} dia(s) no histórico.`);
