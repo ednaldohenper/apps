@@ -159,12 +159,10 @@
         <div>
           <div class="lbl" style="margin-bottom:6px">Período B</div>
           <div class="pbar" style="margin:0 0 6px">
-            <button class="pbtn active" data-cbprev onclick="cmpBprev()">⟲ Anterior ao A</button>
-            <button class="pbtn" data-cb="7" onclick="cmpSetB(7)">7D</button>
-            <button class="pbtn" data-cb="28" onclick="cmpSetB(28)">28D</button>
-            <button class="pbtn" data-cb="90" onclick="cmpSetB(90)">90D</button>
+            <button class="pbtn active" data-cbprev onclick="cmpBprev()">⟲ Anterior ao A (mesma duração)</button>
           </div>
           <input type="date" id="cbF" class="pdate" onchange="cmpDB()"><span class="muted" style="font-size:12px">até</span><input type="date" id="cbT" class="pdate" onchange="cmpDB()">
+          <div class="muted" style="font-size:11px;margin-top:4px">Deixe em "Anterior ao A" para comparar com o período imediatamente anterior, ou escolha datas.</div>
         </div>
       </div>
       <div id="cmpRanges" class="muted" style="font-size:12px;margin-top:10px"></div>
