@@ -140,6 +140,7 @@
     <div id="recs"></div>
   </section>
   <section id="ai">
+    <div style="margin-bottom:14px"><button class="pbtn" onclick="downloadDoc()">⬇ Exportar base de conteúdo p/ o vault (.md)</button></div>
     <div id="aiBody"></div>
   </section>
   <section id="compare">
@@ -186,6 +187,7 @@
       <div class="card"><div class="sectitle" style="margin-top:0">⏰ Melhores dias</div><div id="dayAnalysis"></div></div>
     </div>
     <div class="sectitle">🏆 Ranking de posts <span class="tag">clique para ordenar</span></div>
+    <div id="exclNote" style="margin:6px 0"></div>
     <div class="card" style="overflow-x:auto"><table id="postsTable"><thead><tr>
       <th data-s="date">Data</th><th data-s="type">Formato</th><th>Legenda</th>
       <th data-s="reach" class="num">Alcance</th><th data-s="views" class="num">Views</th>
@@ -267,10 +269,21 @@ async function open_(){
 }
 function lock(){sessionStorage.removeItem("p");location.reload();}
 
+/* ===== Exclusão de mídia paga / impulsionada do cálculo ===== */
+const LS_EXCL="ig_excl_v1";
+let EXCL=new Set();
+function getExcl(){try{return new Set(JSON.parse(localStorage.getItem(LS_EXCL))||[]);}catch{return new Set();}}
+function setExcl(s){try{localStorage.setItem(LS_EXCL,JSON.stringify([...s]));}catch{}}
+function isAdPost(p){return p.type==="AD"||p.media_product_type==="AD"||p.product_type==="AD";}
+function usable(p){return !isAdPost(p)&&!EXCL.has(p.id);}
+function toggleExcl(id){EXCL.has(id)?EXCL.delete(id):EXCL.add(id);setExcl(EXCL);STATE.usableAll=STATE.mediaAll.filter(usable);applyPeriod();renderCompare();}
+
 function build(){
   STATE.profile=B.profile;STATE.acc=B.accDay;STATE.acc28=B.acc28;STATE.demo=B.demo||{};
   STATE.mediaAll=(B.media||[]).map(p=>{const d=new Date(p.ts);const er=p.reach>0?p.inter/p.reach*100:0;return{...p,date:d,er};});
-  STATE.media=STATE.mediaAll;
+  EXCL=getExcl();
+  STATE.usableAll=STATE.mediaAll.filter(usable);
+  STATE.media=STATE.usableAll;
   STATE.series=(B.series||[]).map(x=>({...x,date:new Date(x.d+"T12:00:00")}));
   STATE.totals=B.totals||{};
   STATE.history=Object.values(B.history||{}).sort((a,b)=>a.date<b.date?-1:1);
@@ -288,7 +301,8 @@ function setPreset(days){PERIOD={days,from:null,to:null};const f=$("#pFrom"),t=$
 function applyCustom(){const f=$("#pFrom").value,t=$("#pTo").value;if(!f&&!t){toast("Escolha as datas");return;}PERIOD={days:28,from:f||null,to:t||null};applyPeriod();}
 function applyPeriod(){
   const {from,to}=periodRange();
-  STATE.media=STATE.mediaAll.filter(p=>p.date>=from&&p.date<=to);
+  STATE.media=(STATE.usableAll||STATE.mediaAll).filter(p=>p.date>=from&&p.date<=to);
+  STATE.mediaTable=STATE.mediaAll.filter(p=>p.date>=from&&p.date<=to);
   const lbl=(PERIOD.from||PERIOD.to)?`${from.toLocaleDateString("pt-BR")} → ${to.toLocaleDateString("pt-BR")}`:`últimos ${PERIOD.days} dias`;
   const info=$("#periodInfo");if(info)info.textContent=`${lbl} · ${STATE.media.length} post(s)`;
   document.querySelectorAll("#periodBar .pbtn[data-days]").forEach(b=>b.classList.toggle("active",!PERIOD.from&&!PERIOD.to&&+b.dataset.days===PERIOD.days));
@@ -387,15 +401,21 @@ function renderContent(){const bt=groupBy(STATE.media,"type");
   const dd=D.map((d,i)=>{const a=STATE.media.filter(p=>spDay(p.date)===i);return{d,n:a.length,reach:a.length?avg(a,"reach"):0};});
   const mx2=Math.max(...dd.map(x=>x.reach),1);
   $("#dayAnalysis").innerHTML=dd.map(x=>`<div class="hbar-row"><span class="lbl">${x.d}${x.n?` ${x.n}`:""}</span><span class="bar"><span style="width:${x.reach/mx2*100}%"></span></span><span class="v">${x.reach?fmt(Math.round(x.reach)):"—"}</span></div>`).join("")+`<p class="muted" style="margin-top:10px;font-size:12px">Alcance médio por dia (Brasília).</p>`;
+  const tbl=STATE.mediaTable||[];const nAd=tbl.filter(isAdPost).length,nEx=tbl.filter(p=>!isAdPost(p)&&EXCL.has(p.id)).length;
+  const note=$("#exclNote");
+  if(note)note.innerHTML=(nAd+nEx)?`<span class="muted" style="font-size:12px">⊘ <b>${nAd+nEx}</b> post(s) fora do cálculo neste período (${nAd} anúncio${nAd!==1?'s':''} + ${nEx} marcado${nEx!==1?'s':''}) — aparecem esmaecidos. As métricas acima e a Inteligência já os ignoram.</span>`:`<span class="muted" style="font-size:12px">Use <b>⊘ excluir</b> na coluna de data para tirar um post impulsionado do cálculo (o painel recalcula na hora).</span>`;
   renderPosts("reach");}
 let sk="reach",sd=-1;
 function renderPosts(k){if(k===sk)sd*=-1;else{sk=k;sd=-1;}
-  const m=[...STATE.media].sort((a,b)=>{let av,bv;if(k==="date"){av=a.date;bv=b.date;}else if(k==="type"){av=a.type;bv=b.type;}else{av=a[k];bv=b[k];}return av<bv?sd:av>bv?-sd:0;});
-  $("#postsBody").innerHTML=m.map(p=>`<tr><td>${p.date.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</td>
+  const src=STATE.mediaTable||STATE.media;
+  const m=[...src].sort((a,b)=>{let av,bv;if(k==="date"){av=a.date;bv=b.date;}else if(k==="type"){av=a.type;bv=b.type;}else{av=a[k];bv=b[k];}return av<bv?sd:av>bv?-sd:0;});
+  $("#postsBody").innerHTML=m.map(p=>{const ad=isAdPost(p),ex=ad||EXCL.has(p.id);
+   const tog=ad?`<span class="pill bad" style="font-size:9px">anúncio</span>`:`<button onclick="toggleExcl('${p.id}')" title="${EXCL.has(p.id)?'voltar pro cálculo':'tirar do cálculo (post impulsionado)'}" style="font-size:10px;background:none;border:0;color:var(--mut);cursor:pointer;padding:2px 0">${EXCL.has(p.id)?"↩ incluir":"⊘ excluir"}</button>`;
+   return `<tr style="${ex?'opacity:.45':''}"><td>${p.date.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}<br>${tog}</td>
    <td><span class="fmt ${p.type}">${ptType(p.type)}</span></td>
    <td><div style="display:flex;align-items:center;gap:9px">${p.cover?`<img src="${p.cover}" loading="lazy" referrerpolicy="no-referrer" style="width:46px;height:46px;border-radius:9px;object-fit:cover;flex-shrink:0;background:var(--card2)" onerror="this.style.display='none'">`:""}<a href="${p.link}" target="_blank" class="cap" title="${p.cap}">${p.cap||"(sem legenda)"} ↗</a></div></td>
    <td class="num">${fmt(p.reach)}</td><td class="num">${fmt(p.views)}</td><td class="num">${fmt(p.inter)}</td>
-   <td class="num">${fmt(p.saves)}</td><td class="num">${fmt(p.shares)}</td><td class="num">${pct(p.er)}</td></tr>`).join("");}
+   <td class="num">${fmt(p.saves)}</td><td class="num">${fmt(p.shares)}</td><td class="num">${pct(p.er)}</td></tr>`;}).join("");}
 
 function renderAudience(){const c=STATE.demo.city||[];
   if(c.length){const mx=c[0].v;$("#cities").innerHTML=c.slice(0,10).map(x=>`<div class="hbar-row"><span class="lbl" title="${x.k}">${x.k.split(",")[0]}</span><span class="bar"><span style="width:${x.v/mx*100}%"></span></span><span class="v">${fmt(x.v)}</span></div>`).join("");}
@@ -449,6 +469,67 @@ function renderHistory(){const h=histArr();
      <td class="num">${fmt(x.reach28)}</td><td class="num">${fmt(x.views28)}</td><td class="num">${fmt(x.inter28)}</td></tr>`;}).join("");}
 
 /* ===== Diagnóstico com IA (lê o seu método do vault + os dados) ===== */
+/* ===== Exportar base de conteúdo para o vault (Markdown) ===== */
+function docThemes(m){
+  const STOP=new Set("para com uma uns umas dos das que como mais mas sem sobre quando onde qual quais isso este esta esse essa aquele aquela voce seus suas tem ser nao sim nos nas pra pro por ele ela eles elas".split(/\s+/));
+  const freq={};m.forEach(p=>{const seen=new Set();(p.cap||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9#\s]/g," ").split(/\s+/).forEach(w=>{if(w.length<4||STOP.has(w)||seen.has(w))return;seen.add(w);(freq[w]=freq[w]||{n:0,r:0});freq[w].n++;freq[w].r+=p.reach;});});
+  return Object.entries(freq).filter(([w,o])=>o.n>=2).map(([w,o])=>[w,o.n,Math.round(o.r/o.n)]).sort((a,b)=>b[2]-a[2]).slice(0,8);
+}
+function buildVaultDoc(){
+  const p=STATE.profile,m=STATE.usableAll||[],d=new Date(),md=[];
+  md.push(`---\ntags: [instagram, dados, base-conteudo, ednaldo-henper]\ngerado: ${d.toISOString().slice(0,10)}\nfonte: painel-instagram\n---\n`);
+  md.push(`# Base de Conteúdo — Instagram @${p.username}`);
+  md.push(`> Gerado pelo painel em ${d.toLocaleString("pt-BR")} · ${fmt(p.followers_count)} seguidores · ${fmt(p.media_count)} posts.`);
+  md.push(`> **Dados orgânicos** — anúncios e posts impulsionados marcados foram excluídos do cálculo.\n`);
+  const a=B.ai;
+  if(a){
+    md.push(`## Diagnóstico (IA, pela lente do método)`);
+    if(a.resumo)md.push(a.resumo+"\n");
+    const sec=(t,arr)=>{if(arr&&arr.length){md.push(`### ${t}`);arr.forEach(r=>md.push(`- **${r.titulo}** — ${r.texto}`));md.push("");}};
+    sec("Tendências",a.tendencias);sec("O que está funcionando",a.o_que_funciona);sec("Pontos de atenção",a.atencao);
+    if(a.pauta&&a.pauta.length){md.push(`### Pauta sugerida`);a.pauta.forEach(x=>md.push(`- ${x}`));md.push("");}
+    if(a.leitura_comportamental)md.push(`### Leitura comportamental\n${a.leitura_comportamental}\n`);
+  }
+  const c=B.compare&&B.compare.d28;
+  if(c){
+    md.push(`## Evolução — últimos 28 dias × 28 anteriores`);
+    if(c.resumo)md.push(c.resumo+"\n");
+    const sec=(t,arr)=>{if(arr&&arr.length){md.push(`### ${t}`);arr.forEach(r=>md.push(`- **${r.titulo}** — ${r.texto}`));md.push("");}};
+    sec("Trouxe de novo (e funcionou)",c.melhorou);sec("Deixou de fazer (e custou)",c.largou);
+    if(c.acoes&&c.acoes.length){md.push(`### Continuar / Parar / Testar`);c.acoes.forEach(x=>md.push(`- ${x}`));md.push("");}
+  }
+  if(m.length>=4){
+    const med=arr=>{if(!arr.length)return 0;const s=[...arr].sort((x,y)=>x-y),i=Math.floor(s.length/2);return Math.round(s.length%2?s[i]:(s[i-1]+s[i])/2);};
+    md.push(`## Inteligência dos seus posts (base limpa — ${m.length} posts)`);
+    md.push(`- Alcance típico (mediana): **${fmt(med(m.map(x=>x.reach)))}**`);
+    md.push(`- Salvamentos típicos: **${fmt(med(m.map(x=>x.saves)))}**`);
+    md.push(`- Engajamento típico: **${pct(med(m.map(x=>x.er)))}**\n`);
+    const bt={};m.forEach(x=>(bt[x.type]=bt[x.type]||[]).push(x));
+    md.push(`### Alcance médio por formato`);
+    Object.entries(bt).map(([t,a])=>[ptType(t),Math.round(a.reduce((s,x)=>s+x.reach,0)/a.length),a.length]).sort((x,y)=>y[1]-x[1]).forEach(([t,r,n])=>md.push(`- ${t} (${n} posts): ${fmt(r)} de alcance médio`));
+    md.push("");
+    const tm=docThemes(m);
+    if(tm.length){md.push(`### Temas que mais performam (repetir)`);tm.forEach(([w,n,r])=>md.push(`- **${w}** — ${n}x, alcance médio ${fmt(r)}`));md.push("");}
+    md.push(`### Top 5 posts por alcance (modelar)`);
+    [...m].sort((x,y)=>y.reach-x.reach).slice(0,5).forEach(x=>md.push(`- **${fmt(x.reach)}** alcance · ${ptType(x.type)} · ${x.date.toLocaleDateString("pt-BR")} — ${(x.cap||"(sem legenda)").slice(0,110)}`));
+    md.push("");
+  }
+  md.push(`---`);
+  md.push(`## Como usar esta base para criar conteúdo`);
+  md.push(`- Repita os **temas e formatos** com maior alcance/salvamento acima.`);
+  md.push(`- Estruture Reels pelo **Método Maman** (gancho 0-3s → identificação → desenvolvimento com prova → gatilho emocional → virada → CTA).`);
+  md.push(`- Na copy, fuja dos vícios de IA e **venda o destino, não o método**.`);
+  md.push(`- Use a **Pauta sugerida** e o bloco **Continuar/Parar/Testar** como ponto de partida.`);
+  return md.join("\n");
+}
+function downloadDoc(){
+  try{
+    const md=buildVaultDoc(),blob=new Blob([md],{type:"text/markdown;charset=utf-8"}),a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);a.download=`base-conteudo-${STATE.profile.username}-${new Date().toISOString().slice(0,10)}.md`;
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);toast("Documento exportado 📄");
+  }catch(e){toast("Falha ao exportar");}
+}
+
 function renderAI(){
   const a=B.ai, host=$("#aiBody");
   if(!a){ host.innerHTML=`<div class="empty">O <b>diagnóstico com IA</b> aparece depois de cadastrar o secret <b>ANTHROPIC_API_KEY</b> no repositório (e o <b>VAULT_TOKEN</b> para a IA ler o seu método ao vivo) e rodar o robô. Ele lê as suas tendências pela lente do seu método e escreve uma análise estratégica todo dia.</div>`; return; }
@@ -477,7 +558,7 @@ function cmpRangeOf(s,aR){
   if(s.prev&&aR){const span=aR.to-aR.from;return{from:new Date(aR.from.getTime()-span),to:new Date(aR.from.getTime())};}
   const to=new Date();return{from:new Date(to.getTime()-(s.days||28)*864e5),to};
 }
-function aggPosts(from,to){const m=(STATE.mediaAll||[]).filter(p=>p.date>=from&&p.date<to);
+function aggPosts(from,to){const m=(STATE.usableAll||[]).filter(p=>p.date>=from&&p.date<to);
   if(!m.length)return{posts:0};
   const avg=k=>Math.round(m.reduce((s,x)=>s+(x[k]||0),0)/m.length);
   const er=m.reduce((s,x)=>s+(x.er||0),0)/m.length;
