@@ -53,12 +53,21 @@ function decrypt(b64, pass){
 }
 
 /* ---------- API ---------- */
-async function api(token, p){
+async function api(token, p, tries=3){
   const sep=p.includes("?")?"&":"?";
-  const r=await fetch(`${API}/${p}${sep}access_token=${encodeURIComponent(token)}`);
-  const j=await r.json();
-  if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
-  return j;
+  const url=`${API}/${p}${sep}access_token=${encodeURIComponent(token)}`;
+  for(let i=1;i<=tries;i++){
+    try{
+      const r=await fetch(url);
+      const j=await r.json();
+      if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+      return j;
+    }catch(e){
+      const net=/fetch failed|ETIMEDOUT|ENETUNREACH|ECONNRESET|EAI_AGAIN|socket|network/i.test(String(e.message||e));
+      if(net && i<tries){ await new Promise(r=>setTimeout(r,1000*i)); continue; }
+      throw e;
+    }
+  }
 }
 function accMetric(d,n){ return (d?.data||[]).find(x=>x.name===n)?.total_value?.value ?? null; }
 async function acc28One(token,name){ // 28 dias via intervalo de datas (days_28 foi descontinuado na v22)
