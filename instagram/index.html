@@ -98,6 +98,7 @@
   </header>
   <nav class="tabs" id="tabs">
     <div class="tab active" data-t="overview">Visão Geral</div>
+    <div class="tab" data-t="diag">Inteligência</div>
     <div class="tab" data-t="content">Conteúdo</div>
     <div class="tab" data-t="audience">Audiência</div>
     <div class="tab" data-t="goals">Metas</div>
@@ -110,6 +111,9 @@
     <div class="card"><div id="growthChart"></div></div>
     <div class="sectitle">🧠 Inteligência & Recomendações <span class="tag">dos seus dados</span></div>
     <div id="recs"></div>
+  </section>
+  <section id="diag">
+    <div id="diagBody"></div>
   </section>
   <section id="content_">
     <div class="twocol">
@@ -206,7 +210,7 @@ function build(){
 function histArr(){return STATE.history;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderKPIs();renderGrowth();renderRecs();renderContent();renderAudience();renderGoals();renderHistory();
+function renderAll(){renderHeader();renderKPIs();renderGrowth();renderRecs();renderDiag();renderContent();renderAudience();renderGoals();renderHistory();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -330,8 +334,48 @@ function renderHistory(){const h=histArr();
      <td class="num">${d==null?"—":`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'+':''}${fmt(d)}</span>`}</td>
      <td class="num">${fmt(x.reach28)}</td><td class="num">${fmt(x.views28)}</td><td class="num">${fmt(x.inter28)}</td></tr>`;}).join("");}
 
+/* ===== Inteligência / Diagnóstico — análise local dos seus dados (sem IA) ===== */
+const STOP_PT=new Set("para com uma uns umas dos das que como mais mas sem sobre quando onde qual quais isso este esta esse essa aquele aquela voce seus suas meu minha tem ser nao sim voce nos nas pra pro por ele ela eles elas the and for you your".split(/\s+/));
+const CTA_RE=/(salv\w*|comenta\w*|comente\w*|compartilh\w*|marca\w*|marque\w*|arrast\w*|clica\w*|clique\w*|\blink\b|baix\w*|inscrev\w*|acesse\w*|envie\w*|chama\w*|garant\w*)/i;
+function med(a){if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y),i=Math.floor(s.length/2);return s.length%2?s[i]:(s[i-1]+s[i])/2;}
+function modeBy(arr,fn){const g={};arr.forEach(x=>{const k=fn(x);g[k]=(g[k]||0)+1;});let b=null;Object.entries(g).forEach(([k,c])=>{if(!b||c>b.c)b={k,c};});return b;}
+function renderDiag(){
+  const m=STATE.media,host=$("#diagBody");
+  if(!m||m.length<4){host.innerHTML=`<div class="empty">A inteligência aparece a partir de alguns posts coletados — quanto mais conteúdo, mais precisa fica a leitura.</div>`;return;}
+  const D=["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+  const medR=med(m.map(p=>p.reach)),medS=med(m.map(p=>p.saves)),medER=med(m.map(p=>p.er));
+  const out=[];
+  out.push(`<div class="card"><div class="sectitle" style="margin-top:0">📏 A sua régua <span class="tag">mediana — menos distorção que a média</span></div><div class="grid kpis"><div class="card kpi"><div class="lbl">Alcance típico</div><div class="val">${fmt(Math.round(medR))}</div><div class="sub">metade dos posts passa disso</div></div><div class="card kpi"><div class="lbl">Salvamentos típicos</div><div class="val">${fmt(Math.round(medS))}</div><div class="sub">por post</div></div><div class="card kpi"><div class="lbl">Engajamento típico</div><div class="val">${pct(medER)}</div><div class="sub">interações ÷ alcance</div></div></div></div>`);
+  const top=[...m].sort((a,b)=>b.reach-a.reach).slice(0,Math.max(1,Math.round(m.length*0.25)));
+  const fMode=modeBy(top,p=>p.type),dMode=modeBy(top,p=>spDay(p.date));
+  const capTop=top.reduce((s,p)=>s+(p.cap||"").length,0)/top.length,capAll=m.reduce((s,p)=>s+(p.cap||"").length,0)/m.length;
+  const qTop=top.filter(p=>/\?/.test(p.cap||"")).length/top.length,ctaTop=top.filter(p=>CTA_RE.test(p.cap||"")).length/top.length;
+  out.push(`<div class="card"><div class="sectitle" style="margin-top:0">🧬 O DNA dos seus melhores posts <span class="tag">top 25% por alcance</span></div><div class="hbar-row"><span class="lbl">Formato</span><span class="v" style="width:auto;text-align:left"><span class="fmt ${fMode.k}">${ptType(fMode.k)}</span></span></div><div class="hbar-row"><span class="lbl">Dia</span><span class="v" style="width:auto;text-align:left">${D[dMode.k]}</span></div><div class="hbar-row"><span class="lbl">Legenda</span><span class="v" style="width:auto;text-align:left">${capTop>capAll*1.15?"mais longa":capTop<capAll*0.85?"mais curta":"tamanho médio"} (~${Math.round(capTop)} caracteres)</span></div><div class="hbar-row"><span class="lbl">Com pergunta</span><span class="v" style="width:auto;text-align:left">${pct(qTop*100)}</span></div><div class="hbar-row"><span class="lbl">Com chamada (CTA)</span><span class="v" style="width:auto;text-align:left">${pct(ctaTop*100)}</span></div></div>`);
+  const ins=[];
+  const wQ=m.filter(p=>/\?/.test(p.cap||"")),nQ=m.filter(p=>!/\?/.test(p.cap||""));
+  if(wQ.length>=2&&nQ.length>=2){const a=avg(wQ,"comments"),b=avg(nQ,"comments");if(b>0){const l=(a/b-1)*100;if(Math.abs(l)>=15)ins.push(["❓",`Pergunta na legenda ${l>0?"puxa":"reduz"} comentários`,`Posts com pergunta recebem <b>${pct(Math.abs(l))}</b> ${l>0?"mais":"menos"} comentários. ${l>0?"Feche com uma pergunta real e específica.":""}`]);}}
+  const wC=m.filter(p=>CTA_RE.test(p.cap||"")),nC=m.filter(p=>!CTA_RE.test(p.cap||""));
+  if(wC.length>=2&&nC.length>=2){const a=avg(wC,"saves"),b=avg(nC,"saves");if(b>0){const l=(a/b-1)*100;if(Math.abs(l)>=15)ins.push(["📣",`Chamada para ação ${l>0?"aumenta":"não muda"} salvamentos`,`Posts com CTA são salvos <b>${pct(Math.abs(l))}</b> ${l>0?"mais":"menos"}. ${l>0?"Diga claramente o que fazer (ex.: salve para não esquecer).":""}`]);}}
+  const mL=med(m.map(p=>(p.cap||"").length)),sh=m.filter(p=>(p.cap||"").length<=mL),lo=m.filter(p=>(p.cap||"").length>mL);
+  if(sh.length>=2&&lo.length>=2){const a=avg(lo,"reach"),b=avg(sh,"reach");if(b>0){const l=(a/b-1)*100;if(Math.abs(l)>=15)ins.push(["✍️",`Legendas ${l>0?"longas":"curtas"} alcançam mais`,`As ${l>0?"acima":"abaixo"} da sua mediana de tamanho alcançam <b>${pct(Math.abs(l))}</b> a mais.`]);}}
+  const byT=groupBy(m,"type"),tS=Object.entries(byT).filter(([t,a])=>a.length>=2).map(([t,a])=>({t,r:avg(a,"reach")})).sort((a,b)=>b.r-a.r);
+  if(tS.length>=2&&tS[tS.length-1].r>0){const best=tS[0],worst=tS[tS.length-1],l=(best.r/worst.r-1)*100;if(l>=20)ins.push(["🎬",`${ptType(best.t)} é o seu motor de alcance`,`Em média, <b>${ptType(best.t)}</b> alcança <b>${pct(l)}</b> mais que <b>${ptType(worst.t)}</b>. Priorize na descoberta.`]);}
+  const byDate=[...m].sort((a,b)=>b.date-a.date),last5=byDate.slice(0,5);
+  if(byDate.length>=8&&medR>0){const lm=avg(last5,"reach"),l=(lm/medR-1)*100;ins.push([l>=0?"📈":"📉",`Momentum ${l>=10?"de alta":l<=-10?"de queda":"estável"}`,`Seus últimos 5 posts alcançam ~<b>${fmt(Math.round(lm))}</b> — ${pct(Math.abs(l))} ${l>=0?"acima":"abaixo"} da sua régua. ${l<=-10?"Vale revisitar o que funcionava.":l>=10?"Mantenha a linha.":""}`]);}
+  if(ins.length)out.push(`<div class="sectitle">🔎 Sinais que movem os seus números <span class="tag">cruzando os seus próprios dados</span></div>`+ins.map(r=>`<div class="rec"><div class="ic">${r[0]}</div><div><h4>${r[1]}</h4><p>${r[2]}</p></div></div>`).join(""));
+  const freq={};
+  m.forEach(p=>{const seen=new Set();(p.cap||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9#\s]/g," ").split(/\s+/).forEach(w=>{if(w.length<4||STOP_PT.has(w)||seen.has(w))return;seen.add(w);(freq[w]=freq[w]||{n:0,r:0});freq[w].n++;freq[w].r+=p.reach;});});
+  const themes=Object.entries(freq).filter(([w,o])=>o.n>=2).map(([w,o])=>({w,n:o.n,a:o.r/o.n})).sort((x,y)=>y.a-x.a).slice(0,8);
+  if(themes.length){const mx=themes[0].a;out.push(`<div class="card"><div class="sectitle" style="margin-top:0">🧠 Temas que mais ressoam <span class="tag">palavra na legenda × alcance médio</span></div>`+themes.map(t=>`<div class="hbar-row"><span class="lbl" title="${t.w}">${t.w} <span class="muted">${t.n}×</span></span><span class="bar"><span style="width:${t.a/mx*100}%"></span></span><span class="v">${fmt(Math.round(t.a))}</span></div>`).join("")+`<p class="muted" style="margin-top:10px;font-size:12px">Assuntos recorrentes nas legendas, ordenados pelo alcance médio dos posts onde aparecem.</p></div>`);}
+  const ref=[...m].filter(p=>p.reach>0).map(p=>({...p,sc:p.saves/p.reach})).sort((a,b)=>b.sc-a.sc).slice(0,3);
+  const pos=[...m].filter(p=>p.reach>0).map(p=>({...p,sc:p.shares/p.reach})).sort((a,b)=>b.sc-a.sc).slice(0,3);
+  const mini=p=>`<a href="${p.link}" target="_blank" class="rec" style="text-decoration:none;color:inherit">${p.cover?`<img src="${p.cover}" referrerpolicy="no-referrer" style="width:46px;height:46px;border-radius:9px;object-fit:cover;flex-shrink:0;background:var(--card2)" onerror="this.style.display='none'">`:`<div class="ic">📄</div>`}<div><h4>${pct(p.sc*100)} <span class="muted" style="font-weight:400">· ${p.date.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</span></h4><p>${(p.cap||"(sem legenda)").slice(0,90)}</p></div></a>`;
+  out.push(`<div class="twocol"><div class="card"><div class="sectitle" style="margin-top:0">💾 Vira referência <span class="tag">salva ÷ alcance</span></div>${ref.map(mini).join("")||'<div class="empty">Sem dados.</div>'}</div><div class="card"><div class="sectitle" style="margin-top:0">↗️ Vira posicionamento <span class="tag">compartilha ÷ alcance</span></div>${pos.map(mini).join("")||'<div class="empty">Sem dados.</div>'}</div></div>`);
+  host.innerHTML=out.join("");
+}
+
 /* tabs */
-const SEC={overview:"overview",content:"content_",audience:"audience",goals:"goals",history:"history"};
+const SEC={overview:"overview",diag:"diag",content:"content_",audience:"audience",goals:"goals",history:"history"};
 $("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");
   document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));$("#"+SEC[t.dataset.t]).classList.add("active");});

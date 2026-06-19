@@ -104,7 +104,7 @@ async function refresh(token){
 /* ---------- Coleta ---------- */
 function parsePost(p){
   const ins={}; (p.insights?.data||[]).forEach(m=>ins[m.name]=m.values?.[0]?.value ?? 0);
-  return {id:p.id,cap:(p.caption||"").replace(/\s+/g," ").slice(0,160),
+  return {id:p.id,cap:(p.caption||"").replace(/\s+/g," ").slice(0,280),
     type:p.media_product_type||p.media_type,link:p.permalink,ts:p.timestamp,cover:coverOf(p),
     reach:ins.reach||0,views:ins.views||0,inter:ins.total_interactions||0,
     saves:ins.saved||0,shares:ins.shares||0,likes:p.like_count||0,comments:p.comments_count||0};
