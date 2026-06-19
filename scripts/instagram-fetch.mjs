@@ -93,16 +93,16 @@ function loadContext(){
   // Lê o método AO VIVO do vault (se montado em VAULT_DIR); senão usa o contexto.md commitado.
   const dir=process.env.VAULT_DIR;
   const files=(process.env.CONTEXTO_FILES||[
+    "CLAUDE.md",
     "Estudo para modelar conteudo/REGRAS — Copy Humanizada e Vitrine que Vende.md",
-    "Fichas/FICHA — METODO MAMAN CONTEUDO VIRAL.md",
-    "CLAUDE.md"
+    "Fichas/FICHA — METODO MAMAN CONTEUDO VIRAL.md"
   ].join("\n")).split(/\n/).map(s=>s.trim()).filter(Boolean);
   if(dir && fs.existsSync(dir)){
     const out=[]; let total=0;
     for(const f of files){
       try{ let t=fs.readFileSync(path.join(dir,f),"utf8");
-        if(t.length>6000) t=t.slice(0,6000)+"\n…(trecho)";
-        if(total+t.length>16000) break; total+=t.length;
+        if(t.length>7000) t=t.slice(0,7000)+"\n…(trecho)";
+        if(total+t.length>40000) break; total+=t.length;
         out.push(`\n\n===== ${f} =====\n${t}`);
       }catch{}
     }
