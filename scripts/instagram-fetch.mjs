@@ -172,7 +172,8 @@ async function refresh(token){
   try{
     const j=await api(token,`oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${token}`);
     if(j.access_token){ console.log("Token renovado (+60 dias)."); return j.access_token; }
-  }catch(e){ console.error("Falha ao renovar token:",e.message); }
+  }catch(e){ console.error("Falha ao renovar token:",e.message,
+    `(FB_APP_ID: ${APP_ID.length} chars, só dígitos=${/^\d+$/.test(APP_ID)} | FB_APP_SECRET: ${APP_SECRET.length} chars)`); }
   return token;
 }
 
@@ -187,7 +188,7 @@ function parsePost(p){
 
 async function main(){
   IG_ID=need("IG_ID"); PASS=need("DASH_PASSWORD");
-  APP_ID=process.env.FB_APP_ID||""; APP_SECRET=process.env.FB_APP_SECRET||"";
+  APP_ID=(process.env.FB_APP_ID||"").trim(); APP_SECRET=(process.env.FB_APP_SECRET||"").trim();
   let token=loadToken();
   if(!token){ console.error("Sem token. Defina o secret IG_TOKEN na 1ª execução."); process.exit(1); }
   token=await refresh(token);
