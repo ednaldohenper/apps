@@ -119,7 +119,7 @@
     <button class="pbtn active" data-days="28" onclick="setPreset(28)">28D</button>
     <button class="pbtn" data-days="90" onclick="setPreset(90)">90D</button>
     <span class="pbar-sep"></span>
-    <input type="date" id="pFrom" class="pdate"><span class="muted" style="font-size:12px">até</span><input type="date" id="pTo" class="pdate">
+    <input type="date" id="pFrom" class="pdate" onchange="applyCustom()"><span class="muted" style="font-size:12px">até</span><input type="date" id="pTo" class="pdate" onchange="applyCustom()">
     <button class="pbtn" onclick="applyCustom()">Aplicar</button>
     <span class="muted" id="periodInfo" style="margin-left:auto;font-size:12px"></span>
   </div>
