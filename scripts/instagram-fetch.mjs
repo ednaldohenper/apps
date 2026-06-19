@@ -195,6 +195,43 @@ ${JSON.stringify(buildDossier(bundle))}`;
     return {generated:new Date().toISOString(),model,...parsed};
   }catch(e){ console.error("Falha no diagnóstico de IA (mantendo o anterior):",e.message); return prevAi||null; }
 }
+function compareAgg(media,startDaysAgo,endDaysAgo){ // agrega posts da janela [now-start, now-end]
+  const now=Date.now(), from=now-startDaysAgo*864e5, to=now-endDaysAgo*864e5;
+  const m=media.filter(p=>{const t=new Date(p.ts).getTime(); return t>=from&&t<to;});
+  if(!m.length) return {posts:0};
+  const avg=k=>Math.round(m.reduce((s,x)=>s+(x[k]||0),0)/m.length);
+  const er=+(m.reduce((s,x)=>s+(x.reach>0?x.inter/x.reach*100:0),0)/m.length).toFixed(1);
+  const bt={}; m.forEach(p=>bt[p.type]=(bt[p.type]||0)+1);
+  const formato=Object.entries(bt).sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
+  const STOP=new Set("para com uma dos das que como mais mas sem sobre quando onde qual quais isso este esta esse essa voce seus suas tem ser nao sim".split(/\s+/));
+  const freq={}; m.forEach(p=>{const seen=new Set();(p.cap||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9#\s]/g," ").split(/\s+/).forEach(w=>{if(w.length<4||STOP.has(w)||seen.has(w))return;seen.add(w);freq[w]=(freq[w]||0)+1;});});
+  const temas=Object.entries(freq).filter(([w,n])=>n>=2).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([w])=>w);
+  return {posts:m.length,alcance_medio:avg("reach"),salvamentos_medio:avg("saves"),compart_medio:avg("shares"),engajamento:er,formato_dominante:formato,temas};
+}
+async function aiCompare(bundle, prev){ // diagnóstico comparativo atual × anterior (7 e 28 dias)
+  const key=process.env.ANTHROPIC_API_KEY; if(!key) return prev||null;
+  const model=process.env.AI_MODEL||"claude-opus-4-8";
+  const media=bundle.media||[];
+  const dossie={ janela_7d:{atual:compareAgg(media,7,0),anterior:compareAgg(media,14,7)},
+                 janela_28d:{atual:compareAgg(media,28,0),anterior:compareAgg(media,56,28)} };
+  const contexto=loadContext();
+  const system=`${contexto}\n\nVocê é o motor de comparação de um painel de Instagram do Ednaldo. Compare o período ATUAL com o ANTERIOR pela lente do método (GNC, Maman, regras de copy, vitrine vende o destino). Português do Brasil, no tom dele (cientista do comportamento + estrategista; NUNCA "coach"). Foque no comportamento: o que ele trouxe de novo que funcionou, o que deixou de fazer e custou, e o que ajustar.`;
+  const instr=`Compare atual × anterior em DUAS janelas (7 e 28 dias). Devolva SOMENTE um JSON válido neste formato:
+{"d7":{"resumo":"1-2 frases","melhorou":[{"titulo":"...","texto":"..."}],"largou":[{"titulo":"...","texto":"..."}],"acoes":["ação específica: continuar/parar/testar"]},"d28":{...mesmo formato...}}
+Regras: 2 a 3 itens em "melhorou" e em "largou"; 2 a 3 em "acoes"; cite números reais da comparação; se um período tiver poucos posts, diga isso com honestidade em vez de inventar.
+DADOS:
+${JSON.stringify(dossie)}`;
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model,max_tokens:3000,system,messages:[{role:"user",content:instr}]})});
+    const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+    const text=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
+    const mm=text.match(/\{[\s\S]*\}/); const parsed=JSON.parse(mm?mm[0]:text);
+    console.log("Comparação de IA gerada.");
+    return {generated:new Date().toISOString(),model,...parsed};
+  }catch(e){ console.error("Falha na comparação de IA (mantendo a anterior):",e.message); return prev||null; }
+}
 
 // capa: vídeo/reels -> thumbnail_url; imagem -> media_url; carrossel -> 1º filho
 function coverOf(p){
@@ -274,6 +311,7 @@ async function main(){
 
   const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, demo:demoData, history };
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
+  bundle.compare=await aiCompare(bundle, prev.compare);
   fs.mkdirSync(DIR,{recursive:true});
   fs.writeFileSync(DATA, encrypt(bundle,PASS));
   console.log(`OK — ${profile.username}: ${profile.followers_count} seguidores · ${Object.keys(history).length} dia(s) no histórico.`);

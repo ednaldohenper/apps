@@ -81,6 +81,11 @@
   .pdate{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:5px 8px;font-size:12px;color-scheme:dark;width:148px;flex:0 0 auto}
   .pbar .pbtn{flex:0 0 auto}
   .pbar-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
+  .ctbl{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+  .ctbl th,.ctbl td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left}
+  .ctbl th{color:var(--mut);font-weight:600;font-size:12px}
+  .ctbl td.num,.ctbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+  @media(max-width:640px){#cmpSel{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
@@ -106,6 +111,7 @@
   <nav class="tabs" id="tabs">
     <div class="tab active" data-t="overview">Visão Geral</div>
     <div class="tab" data-t="ai">Diagnóstico</div>
+    <div class="tab" data-t="compare">Comparar</div>
     <div class="tab" data-t="diag">Inteligência</div>
     <div class="tab" data-t="content">Conteúdo</div>
     <div class="tab" data-t="audience">Audiência</div>
@@ -135,6 +141,41 @@
   </section>
   <section id="ai">
     <div id="aiBody"></div>
+  </section>
+  <section id="compare">
+    <div class="card">
+      <div class="sectitle" style="margin-top:0">🔀 Comparar dois períodos <span class="tag">você escolhe A e B</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px" id="cmpSel">
+        <div>
+          <div class="lbl" style="margin-bottom:6px">Período A</div>
+          <div class="pbar" style="margin:0 0 6px">
+            <button class="pbtn" data-ca="7" onclick="cmpSetA(7)">7D</button>
+            <button class="pbtn active" data-ca="28" onclick="cmpSetA(28)">28D</button>
+            <button class="pbtn" data-ca="90" onclick="cmpSetA(90)">90D</button>
+          </div>
+          <input type="date" id="caF" class="pdate" onchange="cmpDA()"><span class="muted" style="font-size:12px">até</span><input type="date" id="caT" class="pdate" onchange="cmpDA()">
+        </div>
+        <div>
+          <div class="lbl" style="margin-bottom:6px">Período B</div>
+          <div class="pbar" style="margin:0 0 6px">
+            <button class="pbtn active" data-cbprev onclick="cmpBprev()">⟲ Anterior ao A</button>
+            <button class="pbtn" data-cb="7" onclick="cmpSetB(7)">7D</button>
+            <button class="pbtn" data-cb="28" onclick="cmpSetB(28)">28D</button>
+            <button class="pbtn" data-cb="90" onclick="cmpSetB(90)">90D</button>
+          </div>
+          <input type="date" id="cbF" class="pdate" onchange="cmpDB()"><span class="muted" style="font-size:12px">até</span><input type="date" id="cbT" class="pdate" onchange="cmpDB()">
+        </div>
+      </div>
+      <div id="cmpRanges" class="muted" style="font-size:12px;margin-top:10px"></div>
+      <div id="cmpTable"></div>
+    </div>
+    <div class="sectitle">🧠 Diagnóstico comparativo (IA) <span class="tag">atual × anterior, pela lente do método</span></div>
+    <div class="pbar" style="margin-bottom:12px">
+      <span class="pbar-lbl">Janela</span>
+      <button class="pbtn" data-cw="7" onclick="cmpWin(7)">7 dias</button>
+      <button class="pbtn active" data-cw="28" onclick="cmpWin(28)">28 dias</button>
+    </div>
+    <div id="cmpAI"></div>
   </section>
   <section id="diag">
     <div id="diagBody"></div>
@@ -273,7 +314,7 @@ function renderSeries(){
     `<div class="card kpi"><div class="lbl">Interações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.inter)}</div><div class="sub">${note}</div></div>`;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderGrowth();renderAI();renderAudience();renderGoals();renderHistory();applyPeriod();
+function renderAll(){renderHeader();renderGrowth();renderAI();renderCompare();renderAudience();renderGoals();renderHistory();applyPeriod();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -423,6 +464,67 @@ function renderAI(){
   host.innerHTML=h;
 }
 
+/* ===== Comparar dois períodos ===== */
+let CMPW=28, CA={days:28,from:null,to:null}, CB={prev:true,from:null,to:null,days:28};
+function cmpSetA(d){CA={days:d,from:null,to:null};$("#caF").value="";$("#caT").value="";renderCompare();}
+function cmpSetB(d){CB={days:d,from:null,to:null,prev:false};$("#cbF").value="";$("#cbT").value="";renderCompare();}
+function cmpBprev(){CB={prev:true,from:null,to:null,days:28};$("#cbF").value="";$("#cbT").value="";renderCompare();}
+function cmpDA(){const f=$("#caF").value,t=$("#caT").value;if(!f&&!t)return;CA={days:28,from:f||null,to:t||null};renderCompare();}
+function cmpDB(){const f=$("#cbF").value,t=$("#cbT").value;if(!f&&!t)return;CB={days:28,prev:false,from:f||null,to:t||null};renderCompare();}
+function cmpWin(w){CMPW=w;renderCompare();}
+function cmpRangeOf(s,aR){
+  if(s.from||s.to){const to=s.to?new Date(s.to+"T23:59:59"):new Date();const from=s.from?new Date(s.from+"T00:00:00"):new Date(to.getTime()-(s.days||28)*864e5);return{from,to};}
+  if(s.prev&&aR){const span=aR.to-aR.from;return{from:new Date(aR.from.getTime()-span),to:new Date(aR.from.getTime())};}
+  const to=new Date();return{from:new Date(to.getTime()-(s.days||28)*864e5),to};
+}
+function aggPosts(from,to){const m=(STATE.mediaAll||[]).filter(p=>p.date>=from&&p.date<to);
+  if(!m.length)return{posts:0};
+  const avg=k=>Math.round(m.reduce((s,x)=>s+(x[k]||0),0)/m.length);
+  const er=m.reduce((s,x)=>s+(x.er||0),0)/m.length;
+  const bt={};m.forEach(p=>bt[p.type]=(bt[p.type]||0)+1);const f=Object.entries(bt).sort((a,b)=>b[1]-a[1])[0];
+  return{posts:m.length,alcance:avg("reach"),salv:avg("saves"),compart:avg("shares"),eng:+er.toFixed(1),formato:f?ptType(f[0]):"—"};}
+function reachAvgR(from,to){const s=(STATE.series||[]).filter(x=>x.date>=from&&x.date<to);return s.length?Math.round(s.reduce((a,x)=>a+(x.reach||0),0)/s.length):null;}
+function cmpRow(label,a,b,fmtFn,higherBetter){fmtFn=fmtFn||fmt;higherBetter=higherBetter!==false;
+  const av=a==null?"—":fmtFn(a), bv=b==null?"—":fmtFn(b);let d="—";
+  if(typeof a==="number"&&typeof b==="number"&&b!==0){const p=(a-b)/Math.abs(b)*100,cls=p>0?(higherBetter?'up':'down'):p<0?(higherBetter?'down':'up'):'flat';
+    d=`<span class="delta ${cls}">${p>0?'▲':p<0?'▼':'—'} ${pct(Math.abs(p))}</span>`;}
+  return`<tr><td>${label}</td><td class="num">${av}</td><td class="num">${bv}</td><td class="num">${d}</td></tr>`;}
+function cmpAIHtml(c){
+  if(!c)return`<div class="empty">A comparação com IA aparece após o robô rodar (precisa do <b>ANTHROPIC_API_KEY</b>). Ela lê atual × anterior pela lente do seu método.</div>`;
+  const list=(arr,ic)=>(arr||[]).map(r=>`<div class="rec"><div class="ic">${ic}</div><div><h4>${r.titulo||""}</h4><p>${r.texto||""}</p></div></div>`).join("");
+  let h="";
+  if(c.resumo)h+=`<div class="card" style="border-color:var(--acc)"><p style="margin:0;font-size:15px;line-height:1.6">${c.resumo}</p></div>`;
+  if(c.melhorou&&c.melhorou.length)h+=`<div class="sectitle">🟢 O que você trouxe de novo (e funcionou)</div>${list(c.melhorou,"▲")}`;
+  if(c.largou&&c.largou.length)h+=`<div class="sectitle">🔴 O que você deixou de fazer (e custou)</div>${list(c.largou,"▼")}`;
+  if(c.acoes&&c.acoes.length)h+=`<div class="card"><div class="sectitle" style="margin-top:0">🎯 Continuar / Parar / Testar</div><ul style="margin:0;padding-left:20px;line-height:1.9;font-size:14px">${c.acoes.map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+  return h;
+}
+function renderCompare(){
+  if(!$("#cmpTable"))return;
+  const aR=cmpRangeOf(CA), bR=cmpRangeOf(CB,aR);
+  const aA=aggPosts(aR.from,aR.to), aB=aggPosts(bR.from,bR.to);
+  const raA=reachAvgR(aR.from,aR.to), raB=reachAvgR(bR.from,bR.to);
+  const fd=d=>d.toLocaleDateString("pt-BR");
+  $("#cmpRanges").innerHTML=`<b>A:</b> ${fd(aR.from)} → ${fd(aR.to)} &nbsp;·&nbsp; <b>B:</b> ${fd(bR.from)} → ${fd(bR.to)}`;
+  $("#cmpTable").innerHTML=`<table class="ctbl"><thead><tr><th>Métrica</th><th class="num">A</th><th class="num">B</th><th class="num">A vs B</th></tr></thead><tbody>`+
+    cmpRow("Posts publicados",aA.posts,aB.posts)+
+    cmpRow("Alcance médio/post",aA.alcance,aB.alcance)+
+    cmpRow("Alcance médio/dia",raA,raB)+
+    cmpRow("Salvamentos médios",aA.salv,aB.salv)+
+    cmpRow("Compartilhamentos médios",aA.compart,aB.compart)+
+    cmpRow("Engajamento",aA.eng,aB.eng,pct)+
+    `<tr><td>Formato dominante</td><td class="num">${aA.formato||"—"}</td><td class="num">${aB.formato||"—"}</td><td class="num">—</td></tr>`+
+    `</tbody></table><p class="muted" style="margin-top:8px;font-size:12px">A vs B compara A em relação a B. Verde = A maior; vermelho = A menor.</p>`;
+  document.querySelectorAll("#cmpSel [data-ca]").forEach(b=>b.classList.toggle("active",!CA.from&&!CA.to&&+b.dataset.ca===CA.days));
+  document.querySelectorAll("#cmpSel [data-cb]").forEach(b=>b.classList.toggle("active",!CB.prev&&!CB.from&&!CB.to&&+b.dataset.cb===CB.days));
+  const bp=document.querySelector("#cmpSel [data-cbprev]");if(bp)bp.classList.toggle("active",!!CB.prev);
+  document.querySelectorAll("#compare .pbar [data-cw]").forEach(b=>b.classList.toggle("active",+b.dataset.cw===CMPW));
+  const c=B.compare?(CMPW===7?B.compare.d7:B.compare.d28):null;
+  let ai=cmpAIHtml(c);
+  if(B.compare&&B.compare.generated)ai+=`<div class="foot">Comparação gerada por IA em ${new Date(B.compare.generated).toLocaleString("pt-BR")}${B.compare.model?" · "+B.compare.model:""}</div>`;
+  $("#cmpAI").innerHTML=ai;
+}
+
 /* ===== Inteligência / Diagnóstico — análise local dos seus dados (sem IA) ===== */
 const STOP_PT=new Set("para com uma uns umas dos das que como mais mas sem sobre quando onde qual quais isso este esta esse essa aquele aquela voce seus suas meu minha tem ser nao sim voce nos nas pra pro por ele ela eles elas the and for you your".split(/\s+/));
 const CTA_RE=/(salv\w*|comenta\w*|comente\w*|compartilh\w*|marca\w*|marque\w*|arrast\w*|clica\w*|clique\w*|\blink\b|baix\w*|inscrev\w*|acesse\w*|envie\w*|chama\w*|garant\w*)/i;
@@ -464,7 +566,7 @@ function renderDiag(){
 }
 
 /* tabs */
-const SEC={overview:"overview",ai:"ai",diag:"diag",content:"content_",audience:"audience",goals:"goals",history:"history"};
+const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",audience:"audience",goals:"goals",history:"history"};
 $("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");
   document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));$("#"+SEC[t.dataset.t]).classList.add("active");});
