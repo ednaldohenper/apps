@@ -251,7 +251,7 @@ function applyPeriod(){
   const lbl=(PERIOD.from||PERIOD.to)?`${from.toLocaleDateString("pt-BR")} → ${to.toLocaleDateString("pt-BR")}`:`últimos ${PERIOD.days} dias`;
   const info=$("#periodInfo");if(info)info.textContent=`${lbl} · ${STATE.media.length} post(s)`;
   document.querySelectorAll("#periodBar .pbtn[data-days]").forEach(b=>b.classList.toggle("active",!PERIOD.from&&!PERIOD.to&&+b.dataset.days===PERIOD.days));
-  renderRecs();renderContent();renderDiag();renderSeries();
+  renderKPIs();renderRecs();renderContent();renderDiag();renderSeries();
 }
 function miniLine(v,color){const w=300,ht=60,pad=6,mn=Math.min(...v),mx=Math.max(...v),rng=mx-mn||1;
   const x=i=>pad+i*(w-2*pad)/(v.length-1||1),y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
@@ -273,7 +273,7 @@ function renderSeries(){
     `<div class="card kpi"><div class="lbl">Interações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.inter)}</div><div class="sub">${note}</div></div>`;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderKPIs();renderGrowth();renderAI();renderAudience();renderGoals();renderHistory();applyPeriod();
+function renderAll(){renderHeader();renderGrowth();renderAI();renderAudience();renderGoals();renderHistory();applyPeriod();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -283,13 +283,23 @@ function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.pro
 
 function delta(c,p){if(p==null||c==null)return`<span class="delta flat">—</span>`;const d=c-p,pp=p?d/p*100:0;
   return`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'▲':d<0?'▼':'—'} ${fmt(Math.abs(d))} (${pct(Math.abs(pp))})</span>`;}
-function renderKPIs(){const a=STATE.acc,a28=STATE.acc28,p=STATE.profile,h=histArr();const prev=h.length>1?h[h.length-2]:null;
-  const er=()=>{const r=accMetric(a28,"reach"),i=accMetric(a28,"total_interactions");return r?i/r*100:null;};
+function renderKPIs(){const a=STATE.acc,p=STATE.profile,h=histArr();const prev=h.length>1?h[h.length-2]:null;
+  const isPreset=!PERIOD.from&&!PERIOD.to, days=PERIOD.days, suf=isPreset?days+"D":"período";
+  const tt=isPreset?((STATE.totals||{})[days]||null):null;
+  const {from,to}=periodRange();
+  const sr=(STATE.series||[]).filter(x=>x.date>=from&&x.date<=to);
+  const reachAvg=sr.length?Math.round(sr.reduce((s,x)=>s+(x.reach||0),0)/sr.length):null;
+  let reachVal,reachSub;
+  if(tt&&tt.reach!=null){reachVal=fmt(tt.reach);reachSub="contas únicas";}
+  else if(reachAvg!=null){reachVal=fmt(reachAvg);reachSub="média/dia (alcance não soma)";}
+  else{reachVal="—";reachSub="contas únicas";}
+  const views=tt&&tt.views!=null?fmt(tt.views):"—", inter=tt&&tt.inter!=null?fmt(tt.inter):"—";
+  const eng=(tt&&tt.reach!=null&&tt.inter!=null)?pct(tt.inter/tt.reach*100):"—";
   const c=[["Seguidores",fmt(p.followers_count),prev?delta(p.followers_count,prev.followers):"—"],
-   ["Alcance · 28d",fmt(accMetric(a28,"reach")),prev?delta(accMetric(a28,"reach"),prev.reach28):"contas únicas"],
-   ["Visualizações · 28d",fmt(accMetric(a28,"views")),"reels+posts+stories"],
-   ["Interações · 28d",fmt(accMetric(a28,"total_interactions")),prev?delta(accMetric(a28,"total_interactions"),prev.inter28):"—"],
-   ["Engajamento · 28d",pct(er()),"interações ÷ alcance"],
+   [`Alcance · ${suf}`,reachVal,reachSub],
+   [`Visualizações · ${suf}`,views,"reels+posts+stories"],
+   [`Interações · ${suf}`,inter,"interações totais"],
+   [`Engajamento · ${suf}`,eng,"interações ÷ alcance"],
    ["Visitas ao perfil",fmt(accMetric(a,"profile_views")),"~24-48h"],
    ["Contas engajadas",fmt(accMetric(a,"accounts_engaged")),"~24-48h"],
    ["Salvamentos",fmt(accMetric(a,"saves")),"sinal de referência"]];

@@ -96,9 +96,13 @@ async function totalOver(token,name,days){ // soma do período via total_value, 
   }
   return got?total:null;
 }
-async function buildTotals(token){ // totais de views e interações para 7/28/90 dias
+async function buildTotals(token){ // totais por período: 7/28/90 dias
   const out={};
-  for(const days of [7,28,90]) out[days]={ views:await totalOver(token,"views",days), inter:await totalOver(token,"total_interactions",days) };
+  for(const days of [7,28,90]){
+    const o={ views:await totalOver(token,"views",days), inter:await totalOver(token,"total_interactions",days) };
+    if(days<=30) o.reach=await totalOver(token,"reach",days); // alcance único só em janela <=30d
+    out[days]=o;
+  }
   return out;
 }
 /* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
