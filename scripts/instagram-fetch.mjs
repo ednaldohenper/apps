@@ -61,6 +61,19 @@ async function api(token, p){
   return j;
 }
 function accMetric(d,n){ return (d?.data||[]).find(x=>x.name===n)?.total_value?.value ?? null; }
+async function acc28One(token,name){ // 28 dias, métrica a métrica (uma falha não derruba as outras)
+  const j=await api(token,`${IG_ID}/insights?metric=${name}&period=days_28&metric_type=total_value`).catch(()=>null);
+  const v=j?.data?.[0]?.total_value?.value;
+  return v==null?null:{name,total_value:{value:v}};
+}
+// capa: vídeo/reels -> thumbnail_url; imagem -> media_url; carrossel -> 1º filho
+function coverOf(p){
+  if(p.thumbnail_url) return p.thumbnail_url;
+  if(p.media_url && p.media_type!=="VIDEO") return p.media_url;
+  const c=p.children?.data?.[0];
+  if(c) return c.thumbnail_url||c.media_url||"";
+  return p.media_url||"";
+}
 async function demo(token,dim){
   const j=await api(token,`${IG_ID}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${dim}`);
   const res=j.data?.[0]?.total_value?.breakdowns?.[0]?.results||[];
@@ -92,7 +105,7 @@ async function refresh(token){
 function parsePost(p){
   const ins={}; (p.insights?.data||[]).forEach(m=>ins[m.name]=m.values?.[0]?.value ?? 0);
   return {id:p.id,cap:(p.caption||"").replace(/\s+/g," ").slice(0,160),
-    type:p.media_product_type||p.media_type,link:p.permalink,ts:p.timestamp,
+    type:p.media_product_type||p.media_type,link:p.permalink,ts:p.timestamp,cover:coverOf(p),
     reach:ins.reach||0,views:ins.views||0,inter:ins.total_interactions||0,
     saves:ins.saved||0,shares:ins.shares||0,likes:p.like_count||0,comments:p.comments_count||0};
 }
@@ -107,8 +120,9 @@ async function main(){
 
   const profile=await api(token,`${IG_ID}?fields=username,name,followers_count,follows_count,media_count,profile_picture_url,biography`);
   const accDay =await api(token,`${IG_ID}/insights?metric=reach,profile_views,accounts_engaged,total_interactions,likes,comments,saves,shares,views&period=day&metric_type=total_value`).catch(()=>null);
-  const acc28  =await api(token,`${IG_ID}/insights?metric=reach,views,total_interactions&period=days_28&metric_type=total_value`).catch(()=>null);
-  const mediaR =await api(token,`${IG_ID}/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,like_count,comments_count,insights.metric(reach,views,total_interactions,saved,shares)&limit=50`).catch(()=>({data:[]}));
+  const acc28parts=await Promise.all(["reach","views","total_interactions"].map(m=>acc28One(token,m)));
+  const acc28={data:acc28parts.filter(Boolean)};
+  const mediaR =await api(token,`${IG_ID}/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,media_url,thumbnail_url,like_count,comments_count,children{media_url,thumbnail_url,media_type},insights.metric(reach,views,total_interactions,saved,shares)&limit=50`).catch(()=>({data:[]}));
   const media=(mediaR.data||[]).map(parsePost);
   const demoData={ city:await demo(token,"city").catch(()=>[]),
                    gender:await demo(token,"gender").catch(()=>[]),

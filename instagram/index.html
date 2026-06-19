@@ -275,7 +275,7 @@ function renderPosts(k){if(k===sk)sd*=-1;else{sk=k;sd=-1;}
   const m=[...STATE.media].sort((a,b)=>{let av,bv;if(k==="date"){av=a.date;bv=b.date;}else if(k==="type"){av=a.type;bv=b.type;}else{av=a[k];bv=b[k];}return av<bv?sd:av>bv?-sd:0;});
   $("#postsBody").innerHTML=m.map(p=>`<tr><td>${p.date.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</td>
    <td><span class="fmt ${p.type}">${ptType(p.type)}</span></td>
-   <td><a href="${p.link}" target="_blank" class="cap" title="${p.cap}">${p.cap||"(sem legenda)"} ↗</a></td>
+   <td><div style="display:flex;align-items:center;gap:9px">${p.cover?`<img src="${p.cover}" loading="lazy" referrerpolicy="no-referrer" style="width:46px;height:46px;border-radius:9px;object-fit:cover;flex-shrink:0;background:var(--card2)" onerror="this.style.display='none'">`:""}<a href="${p.link}" target="_blank" class="cap" title="${p.cap}">${p.cap||"(sem legenda)"} ↗</a></div></td>
    <td class="num">${fmt(p.reach)}</td><td class="num">${fmt(p.views)}</td><td class="num">${fmt(p.inter)}</td>
    <td class="num">${fmt(p.saves)}</td><td class="num">${fmt(p.shares)}</td><td class="num">${pct(p.er)}</td></tr>`).join("");}
 
