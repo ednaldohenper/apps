@@ -61,9 +61,10 @@ async function api(token, p){
   return j;
 }
 function accMetric(d,n){ return (d?.data||[]).find(x=>x.name===n)?.total_value?.value ?? null; }
-async function acc28One(token,name){ // 28 dias, métrica a métrica (uma falha não derruba as outras)
+async function acc28One(token,name){ // 28 dias via intervalo de datas (days_28 foi descontinuado na v22)
+  const until=Math.floor(Date.now()/1000), since=until-28*86400;
   try{
-    const j=await api(token,`${IG_ID}/insights?metric=${name}&period=days_28&metric_type=total_value`);
+    const j=await api(token,`${IG_ID}/insights?metric=${name}&metric_type=total_value&period=day&since=${since}&until=${until}`);
     const v=j?.data?.[0]?.total_value?.value;
     if(v==null) console.error(`28d ${name}: resposta sem valor -> ${JSON.stringify(j?.data?.[0]||j)}`);
     return v==null?null:{name,total_value:{value:v}};
