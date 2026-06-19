@@ -74,6 +74,12 @@
   @keyframes sp{to{transform:rotate(360deg)}}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--card2);border:1px solid var(--acc);padding:12px 18px;border-radius:12px;font-size:13px;box-shadow:var(--shadow);z-index:99;opacity:0;transition:.3s}.toast.show{opacity:1}
   .foot{margin-top:40px;text-align:center;color:var(--mut2);font-size:11px}
+  .pbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:16px}
+  .pbar-lbl{font-size:12px;color:var(--mut);font-weight:600}
+  .pbtn{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:6px 12px;font-size:13px;cursor:pointer;font-weight:600}
+  .pbtn:hover{border-color:var(--acc)}.pbtn.active{background:var(--acc);border-color:var(--acc);color:#fff}
+  .pdate{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:5px 8px;font-size:12px;color-scheme:dark}
+  .pbar-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
 </style>
 </head>
 <body>
@@ -106,8 +112,21 @@
     <div class="tab" data-t="history">Histórico</div>
   </nav>
 
+  <div class="pbar" id="periodBar">
+    <span class="pbar-lbl">Período</span>
+    <button class="pbtn" data-days="7" onclick="setPreset(7)">7D</button>
+    <button class="pbtn active" data-days="28" onclick="setPreset(28)">28D</button>
+    <button class="pbtn" data-days="90" onclick="setPreset(90)">90D</button>
+    <span class="pbar-sep"></span>
+    <input type="date" id="pFrom" class="pdate"><span class="muted" style="font-size:12px">até</span><input type="date" id="pTo" class="pdate">
+    <button class="pbtn" onclick="applyCustom()">Aplicar</button>
+    <span class="muted" id="periodInfo" style="margin-left:auto;font-size:12px"></span>
+  </div>
+
   <section id="overview" class="active">
     <div class="grid kpis" id="kpiGrid"></div>
+    <div class="sectitle">📊 Tendência da conta <span class="tag" id="seriesTag">no período</span></div>
+    <div class="grid kpis" id="seriesChart"></div>
     <div class="sectitle">📈 Crescimento de seguidores <span class="tag" id="growthTag"></span></div>
     <div class="card"><div id="growthChart"></div></div>
     <div class="sectitle">🧠 Inteligência & Recomendações <span class="tag">dos seus dados</span></div>
@@ -208,13 +227,47 @@ function lock(){sessionStorage.removeItem("p");location.reload();}
 
 function build(){
   STATE.profile=B.profile;STATE.acc=B.accDay;STATE.acc28=B.acc28;STATE.demo=B.demo||{};
-  STATE.media=(B.media||[]).map(p=>{const d=new Date(p.ts);const er=p.reach>0?p.inter/p.reach*100:0;return{...p,date:d,er};});
+  STATE.mediaAll=(B.media||[]).map(p=>{const d=new Date(p.ts);const er=p.reach>0?p.inter/p.reach*100:0;return{...p,date:d,er};});
+  STATE.media=STATE.mediaAll;
+  STATE.series=(B.series||[]).map(x=>({...x,date:new Date(x.d+"T12:00:00")}));
   STATE.history=Object.values(B.history||{}).sort((a,b)=>a.date<b.date?-1:1);
 }
 function histArr(){return STATE.history;}
 
+/* ===== Filtro de período (afeta posts: Conteúdo, Inteligência, Recomendações + Tendência da conta) ===== */
+let PERIOD={days:28,from:null,to:null};
+function periodRange(){
+  const to=PERIOD.to?new Date(PERIOD.to+"T23:59:59"):new Date();
+  const from=PERIOD.from?new Date(PERIOD.from+"T00:00:00"):new Date(to.getTime()-(PERIOD.days||28)*864e5);
+  return {from,to};
+}
+function setPreset(days){PERIOD={days,from:null,to:null};const f=$("#pFrom"),t=$("#pTo");if(f)f.value="";if(t)t.value="";applyPeriod();}
+function applyCustom(){const f=$("#pFrom").value,t=$("#pTo").value;if(!f&&!t){toast("Escolha as datas");return;}PERIOD={days:28,from:f||null,to:t||null};applyPeriod();}
+function applyPeriod(){
+  const {from,to}=periodRange();
+  STATE.media=STATE.mediaAll.filter(p=>p.date>=from&&p.date<=to);
+  const lbl=(PERIOD.from||PERIOD.to)?`${from.toLocaleDateString("pt-BR")} → ${to.toLocaleDateString("pt-BR")}`:`últimos ${PERIOD.days} dias`;
+  const info=$("#periodInfo");if(info)info.textContent=`${lbl} · ${STATE.media.length} post(s)`;
+  document.querySelectorAll("#periodBar .pbtn[data-days]").forEach(b=>b.classList.toggle("active",!PERIOD.from&&!PERIOD.to&&+b.dataset.days===PERIOD.days));
+  renderRecs();renderContent();renderDiag();renderSeries();
+}
+function miniLine(v,color){const w=300,ht=60,pad=6,mn=Math.min(...v),mx=Math.max(...v),rng=mx-mn||1;
+  const x=i=>pad+i*(w-2*pad)/(v.length-1||1),y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
+  const pts=v.map((q,i)=>`${x(i)},${y(q)}`).join(" ");
+  return`<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" style="width:100%;height:50px;margin:6px 0"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/></svg>`;}
+function renderSeries(){
+  const host=$("#seriesChart");if(!host)return;const {from,to}=periodRange();
+  const f=(STATE.series||[]).filter(x=>x.date>=from&&x.date<=to);
+  if(f.length<2){host.innerHTML=`<div class="empty">A tendência diária da conta aparece quando o robô acumular a série (até ~90 dias). Volte após as próximas coletas.</div>`;return;}
+  const sum=k=>f.reduce((a,x)=>a+(x[k]||0),0);
+  const cards=[
+    {t:"Alcance · média/dia",v:fmt(Math.round(sum("reach")/f.length)),vals:f.map(x=>x.reach),c:"#7c5cff",note:"contas únicas/dia (alcance não se soma)"},
+    {t:"Visualizações · total",v:fmt(sum("views")),vals:f.map(x=>x.views),c:"#4ad0ff",note:"soma do período"},
+    {t:"Interações · total",v:fmt(sum("inter")),vals:f.map(x=>x.inter),c:"#2ecc71",note:"soma do período"}];
+  host.innerHTML=cards.map(c=>`<div class="card kpi"><div class="lbl">${c.t}</div><div class="val" style="font-size:24px">${c.v}</div>${miniLine(c.vals,c.c)}<div class="sub">${c.note}</div></div>`).join("");}
+
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderKPIs();renderGrowth();renderRecs();renderAI();renderDiag();renderContent();renderAudience();renderGoals();renderHistory();
+function renderAll(){renderHeader();renderKPIs();renderGrowth();renderAI();renderAudience();renderGoals();renderHistory();applyPeriod();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";

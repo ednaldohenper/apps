@@ -70,6 +70,27 @@ async function acc28One(token,name){ // 28 dias via intervalo de datas (days_28 
     return v==null?null:{name,total_value:{value:v}};
   }catch(e){ console.error(`28d ${name}: ${e.message}`); return null; }
 }
+async function seriesMetric(token,name,since,until){ // série diária (time_series)
+  try{
+    const j=await api(token,`${IG_ID}/insights?metric=${name}&metric_type=time_series&period=day&since=${since}&until=${until}`);
+    const vals=j?.data?.[0]?.values;
+    if(!Array.isArray(vals)){ console.error(`série ${name}: shape inesperado -> ${JSON.stringify(j?.data?.[0]||j).slice(0,200)}`); return []; }
+    return vals.map(v=>({d:(v.end_time||"").slice(0,10), v:v.value??0}));
+  }catch(e){ console.error(`série ${name}: ${e.message}`); return []; }
+}
+async function buildSeries(token){ // últimos ~90 dias em 3 janelas de 30 (teto da API)
+  const DAY=86400, now=Math.floor(Date.now()/1000), byDate={};
+  for(let c=0;c<3;c++){
+    const until=now-c*30*DAY, since=until-30*DAY;
+    for(const m of ["reach","views","total_interactions"]){
+      for(const {d,v} of await seriesMetric(token,m,since,until)){
+        if(!d) continue; (byDate[d]=byDate[d]||{d}); byDate[d][m]=v;
+      }
+    }
+  }
+  return Object.values(byDate).sort((a,b)=>a.d<b.d?-1:1)
+    .map(o=>({d:o.d, reach:o.reach??0, views:o.views??0, inter:o.total_interactions??0}));
+}
 /* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
 function aiStats(media){
   const r=media.map(p=>p.reach).filter(x=>x>0).sort((a,b)=>a-b);
@@ -90,8 +111,11 @@ function buildDossier(b){
     salvamentos:x.saves,compart:x.shares,coment:x.comments,legenda:(x.cap||"").slice(0,140)}));
   const historico=Object.values(b.history||{}).sort((a,c)=>a.date<c.date?-1:1)
     .map(h=>({data:h.date,seguidores:h.followers,alcance28:h.reach28,views28:h.views28,interacoes28:h.inter28}));
+  const serie=b.series||[]; const tot=k=>serie.reduce((s,x)=>s+(x[k]||0),0);
+  const tendencia90={dias:serie.length, views_total:tot("views"), interacoes_total:tot("inter"),
+    alcance_medio_diario:serie.length?Math.round(tot("reach")/serie.length):0, serie_diaria:serie};
   return {perfil:{nome:p.name,usuario:p.username,seguidores:p.followers_count,posts:p.media_count},
-    estatisticas:aiStats(b.media||[]),historico_diario:historico,posts};
+    estatisticas:aiStats(b.media||[]),historico_diario:historico,tendencia_90d:tendencia90,posts};
 }
 function loadContext(){
   // Lê o método AO VIVO do vault (se montado em VAULT_DIR); senão usa o contexto.md commitado.
@@ -198,8 +222,9 @@ async function main(){
   const accDay =await api(token,`${IG_ID}/insights?metric=reach,profile_views,accounts_engaged,total_interactions,likes,comments,saves,shares,views&period=day&metric_type=total_value`).catch(()=>null);
   const acc28parts=await Promise.all(["reach","views","total_interactions"].map(m=>acc28One(token,m)));
   const acc28={data:acc28parts.filter(Boolean)};
-  const mediaR =await api(token,`${IG_ID}/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,media_url,thumbnail_url,like_count,comments_count,children{media_url,thumbnail_url,media_type},insights.metric(reach,views,total_interactions,saved,shares)&limit=50`).catch(()=>({data:[]}));
+  const mediaR =await api(token,`${IG_ID}/media?fields=id,caption,media_type,media_product_type,timestamp,permalink,media_url,thumbnail_url,like_count,comments_count,children{media_url,thumbnail_url,media_type},insights.metric(reach,views,total_interactions,saved,shares)&limit=100`).catch(()=>({data:[]}));
   const media=(mediaR.data||[]).map(parsePost);
+  const series=await buildSeries(token).catch(()=>[]);
   const demoData={ city:await demo(token,"city").catch(()=>[]),
                    gender:await demo(token,"gender").catch(()=>[]),
                    age:await demo(token,"age").catch(()=>[]) };
@@ -215,7 +240,7 @@ async function main(){
     reachDay:accMetric(accDay,"reach"), viewsDay:accMetric(accDay,"views"),
     profileViews:accMetric(accDay,"profile_views"), engaged:accMetric(accDay,"accounts_engaged")};
 
-  const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, demo:demoData, history };
+  const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, demo:demoData, history };
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
   fs.mkdirSync(DIR,{recursive:true});
   fs.writeFileSync(DATA, encrypt(bundle,PASS));
