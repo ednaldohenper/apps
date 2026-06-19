@@ -283,7 +283,7 @@ function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.pro
 
 function delta(c,p){if(p==null||c==null)return`<span class="delta flat">—</span>`;const d=c-p,pp=p?d/p*100:0;
   return`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'▲':d<0?'▼':'—'} ${fmt(Math.abs(d))} (${pct(Math.abs(pp))})</span>`;}
-function renderKPIs(){const a=STATE.acc,p=STATE.profile,h=histArr();const prev=h.length>1?h[h.length-2]:null;
+function renderKPIs(){const p=STATE.profile,h=histArr();const prev=h.length>1?h[h.length-2]:null;
   const isPreset=!PERIOD.from&&!PERIOD.to, days=PERIOD.days, suf=isPreset?days+"D":"período";
   const tt=isPreset?((STATE.totals||{})[days]||null):null;
   const {from,to}=periodRange();
@@ -293,16 +293,16 @@ function renderKPIs(){const a=STATE.acc,p=STATE.profile,h=histArr();const prev=h
   if(tt&&tt.reach!=null){reachVal=fmt(tt.reach);reachSub="contas únicas";}
   else if(reachAvg!=null){reachVal=fmt(reachAvg);reachSub="média/dia (alcance não soma)";}
   else{reachVal="—";reachSub="contas únicas";}
-  const views=tt&&tt.views!=null?fmt(tt.views):"—", inter=tt&&tt.inter!=null?fmt(tt.inter):"—";
-  const eng=(tt&&tt.reach!=null&&tt.inter!=null)?pct(tt.inter/tt.reach*100):"—";
+  const g=v=>(tt&&v!=null)?fmt(v):"—";
+  const engPct=(tt&&tt.reach!=null&&tt.inter!=null)?pct(tt.inter/tt.reach*100):"—";
   const c=[["Seguidores",fmt(p.followers_count),prev?delta(p.followers_count,prev.followers):"—"],
    [`Alcance · ${suf}`,reachVal,reachSub],
-   [`Visualizações · ${suf}`,views,"reels+posts+stories"],
-   [`Interações · ${suf}`,inter,"interações totais"],
-   [`Engajamento · ${suf}`,eng,"interações ÷ alcance"],
-   ["Visitas ao perfil",fmt(accMetric(a,"profile_views")),"~24-48h"],
-   ["Contas engajadas",fmt(accMetric(a,"accounts_engaged")),"~24-48h"],
-   ["Salvamentos",fmt(accMetric(a,"saves")),"sinal de referência"]];
+   [`Visualizações · ${suf}`,g(tt&&tt.views),"reels+posts+stories"],
+   [`Interações · ${suf}`,g(tt&&tt.inter),"interações totais"],
+   [`Engajamento · ${suf}`,engPct,"interações ÷ alcance"],
+   [`Visitas ao perfil · ${suf}`,g(tt&&tt.profile_views),"soma do período"],
+   [`Contas engajadas · ${suf}`,g(tt&&tt.engaged),(tt&&tt.engaged!=null)?"contas únicas":"só em 7/28D"],
+   [`Salvamentos · ${suf}`,g(tt&&tt.saves),"soma do período"]];
   $("#kpiGrid").innerHTML=c.map(x=>`<div class="card kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");}
 
 function renderGrowth(){const h=histArr();$("#growthTag").textContent=`${h.length} dia(s)`;

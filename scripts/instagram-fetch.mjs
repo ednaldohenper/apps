@@ -99,8 +99,15 @@ async function totalOver(token,name,days){ // soma do período via total_value, 
 async function buildTotals(token){ // totais por período: 7/28/90 dias
   const out={};
   for(const days of [7,28,90]){
-    const o={ views:await totalOver(token,"views",days), inter:await totalOver(token,"total_interactions",days) };
-    if(days<=30) o.reach=await totalOver(token,"reach",days); // alcance único só em janela <=30d
+    const o={
+      views:await totalOver(token,"views",days),
+      inter:await totalOver(token,"total_interactions",days),
+      saves:await totalOver(token,"saves",days),
+      profile_views:await totalOver(token,"profile_views",days) };
+    if(days<=30){ // métricas "únicas": só em janela <=30d
+      o.reach=await totalOver(token,"reach",days);
+      o.engaged=await totalOver(token,"accounts_engaged",days);
+    }
     out[days]=o;
   }
   return out;
