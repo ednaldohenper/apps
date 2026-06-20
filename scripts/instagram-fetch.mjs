@@ -232,6 +232,58 @@ ${JSON.stringify(dossie)}`;
     return {generated:new Date().toISOString(),model,...parsed};
   }catch(e){ console.error("Falha na comparação de IA (mantendo a anterior):",e.message); return prev||null; }
 }
+/* ---------- Documento de inteligência para o vault ---------- */
+function vaultDoc(b){
+  const p=b.profile, media=(b.media||[]).filter(x=>x.type!=="AD");
+  const st=aiStats(media);
+  const PT={REELS:"Reels",FEED:"Feed",STORY:"Story",CAROUSEL_ALBUM:"Carrossel",VIDEO:"Vídeo",IMAGE:"Imagem"};
+  const nf=n=>(n==null?"—":Number(n).toLocaleString("pt-BR"));
+  const L=[];
+  L.push(`---\ntags: [instagram, dados, base-conteudo, ednaldo-henper]\natualizado: ${new Date().toISOString().slice(0,10)}\nfonte: painel-instagram (auto)\n---\n`);
+  L.push(`# Inteligência Instagram — @${p.username}`);
+  L.push(`> Atualizado automaticamente pelo robô em ${new Date().toLocaleString("pt-BR")}. ${nf(p.followers_count)} seguidores · ${nf(p.media_count)} posts. Dados orgânicos (anúncios excluídos).\n`);
+  const a=b.ai;
+  if(a){ L.push(`## Diagnóstico (IA, pela lente do método)`); if(a.resumo)L.push(a.resumo+"\n");
+    const sec=(t,arr)=>{if(arr&&arr.length){L.push(`### ${t}`);arr.forEach(r=>L.push(`- **${r.titulo}** — ${r.texto}`));L.push("");}};
+    sec("Tendências",a.tendencias);sec("O que está funcionando",a.o_que_funciona);sec("Pontos de atenção",a.atencao);
+    if(a.pauta&&a.pauta.length){L.push(`### Pauta sugerida`);a.pauta.forEach(x=>L.push(`- ${x}`));L.push("");}
+    if(a.leitura_comportamental)L.push(`### Leitura comportamental\n${a.leitura_comportamental}\n`);
+  }
+  const c=b.compare&&b.compare.d28;
+  if(c){ L.push(`## Evolução — 28 dias × 28 anteriores`); if(c.resumo)L.push(c.resumo+"\n");
+    const sec=(t,arr)=>{if(arr&&arr.length){L.push(`### ${t}`);arr.forEach(r=>L.push(`- **${r.titulo}** — ${r.texto}`));L.push("");}};
+    sec("Trouxe de novo (e funcionou)",c.melhorou);sec("Deixou de fazer (e custou)",c.largou);
+    if(c.acoes&&c.acoes.length){L.push(`### Continuar / Parar / Testar`);c.acoes.forEach(x=>L.push(`- ${x}`));L.push("");}
+  }
+  if(media.length>=4){
+    L.push(`## Inteligência dos posts (${media.length} posts)`);
+    L.push(`- Alcance típico (mediana): **${nf(st.medianaAlcance)}**\n`);
+    L.push(`### Alcance médio por formato`);
+    st.formatos.forEach(f=>L.push(`- ${PT[f.formato]||f.formato} (${f.posts}): ${nf(f.alcanceMedio)} de alcance · ${nf(f.salvMedio)} salvamentos médios`));
+    L.push("");
+    if(st.temas&&st.temas.length){L.push(`### Temas que mais performam`);st.temas.slice(0,8).forEach(t=>L.push(`- **${t.tema}** — ${t.vezes}x, alcance médio ${nf(t.alcanceMedio)}`));L.push("");}
+    L.push(`### Top 5 posts por alcance`);
+    [...media].sort((x,y)=>y.reach-x.reach).slice(0,5).forEach(x=>L.push(`- **${nf(x.reach)}** alcance · ${PT[x.type]||x.type} · ${(x.ts||"").slice(0,10)} — ${(x.cap||"(sem legenda)").slice(0,110)}`));
+    L.push("");
+  }
+  L.push(`---`);
+  L.push(`## Como usar para criar Reels`);
+  L.push(`- Repita os **temas e formatos** de maior alcance/salvamento acima.`);
+  L.push(`- Estruture o Reel pelo **Método Maman**: gancho (0-3s) → identificação → desenvolvimento com prova → gatilho emocional → virada → CTA.`);
+  L.push(`- Copy sem vício de IA; **venda o destino, não o método**.`);
+  L.push(`- Parta da **Pauta sugerida** e do bloco **Continuar / Parar / Testar**.`);
+  return L.join("\n");
+}
+function writeVaultDoc(bundle){
+  const dir=process.env.VAULT_DIR;
+  if(!dir||!fs.existsSync(dir)){ console.log("Vault não montado — documento de inteligência não escrito."); return; }
+  try{
+    const outDir=path.join(dir,"Instagram"); fs.mkdirSync(outDir,{recursive:true});
+    const file=path.join(outDir,"Inteligência Instagram (auto).md");
+    fs.writeFileSync(file, vaultDoc(bundle));
+    console.log(`Inteligência escrita no vault: ${file}`);
+  }catch(e){ console.error("Falha ao escrever documento no vault:",e.message); }
+}
 
 // capa: vídeo/reels -> thumbnail_url; imagem -> media_url; carrossel -> 1º filho
 function coverOf(p){
@@ -312,6 +364,7 @@ async function main(){
   const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, demo:demoData, history };
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
   bundle.compare=await aiCompare(bundle, prev.compare);
+  writeVaultDoc(bundle);
   fs.mkdirSync(DIR,{recursive:true});
   fs.writeFileSync(DATA, encrypt(bundle,PASS));
   console.log(`OK — ${profile.username}: ${profile.followers_count} seguidores · ${Object.keys(history).length} dia(s) no histórico.`);

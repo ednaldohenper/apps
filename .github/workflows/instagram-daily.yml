@@ -50,3 +50,16 @@ jobs:
           git add instagram/data.enc .secrets/instagram-token.enc
           git commit -m "instagram: atualização diária ($(date -u +%Y-%m-%d))" || echo "Sem mudanças"
           git push
+
+      # Sobe o documento de inteligência para o vault. Precisa que o VAULT_TOKEN
+      # tenha permissão de ESCRITA (Contents: Read and write). Se for só leitura,
+      # o push falha aqui sem quebrar o resto.
+      - name: Salvar inteligência no vault
+        continue-on-error: true
+        working-directory: vault
+        run: |
+          git config user.name  "instagram-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          git commit -m "instagram: inteligência diária ($(date -u +%Y-%m-%d))" || echo "Sem mudanças"
+          git push
