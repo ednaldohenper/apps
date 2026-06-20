@@ -114,6 +114,7 @@
     <div class="tab" data-t="compare">Comparar</div>
     <div class="tab" data-t="diag">Inteligência</div>
     <div class="tab" data-t="content">Conteúdo</div>
+    <div class="tab" data-t="ads">Anúncios</div>
     <div class="tab" data-t="audience">Audiência</div>
     <div class="tab" data-t="goals">Metas</div>
     <div class="tab" data-t="history">Histórico</div>
@@ -192,6 +193,15 @@
       <th data-s="inter" class="num">Interações</th><th data-s="saves" class="num">💾</th>
       <th data-s="shares" class="num">↗</th><th data-s="er" class="num">Eng%</th>
     </tr></thead><tbody id="postsBody"></tbody></table></div>
+  </section>
+  <section id="ads">
+    <div class="pbar" id="adsBar" style="margin-bottom:16px">
+      <span class="pbar-lbl">Período</span>
+      <button class="pbtn" data-aw="7" onclick="adsWin(7)">7D</button>
+      <button class="pbtn active" data-aw="28" onclick="adsWin(28)">28D</button>
+      <button class="pbtn" data-aw="90" onclick="adsWin(90)">90D</button>
+    </div>
+    <div id="adsBody"></div>
   </section>
   <section id="audience">
     <div class="twocol">
@@ -326,7 +336,7 @@ function renderSeries(){
     `<div class="card kpi"><div class="lbl">Interações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.inter)}</div><div class="sub">${note}</div></div>`;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderGrowth();renderAI();renderCompare();renderAudience();renderGoals();renderHistory();applyPeriod();
+function renderAll(){renderHeader();renderGrowth();renderAI();renderCompare();renderAds();renderAudience();renderGoals();renderHistory();applyPeriod();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -543,6 +553,41 @@ function renderAI(){
   host.innerHTML=h;
 }
 
+/* ===== Anúncios (Marketing API) ===== */
+let adsW=28;
+const ADS_ACT={link_click:"Cliques no link",landing_page_view:"Visitas à página",post_engagement:"Engajamento",
+ page_engagement:"Engajamento na página",video_view:"Views de vídeo",lead:"Leads",
+ "onsite_conversion.lead_grouped":"Leads","onsite_conversion.messaging_conversation_started_7d":"Conversas iniciadas",
+ "onsite_conversion.messaging_first_reply":"1ª resposta (DM)",purchase:"Compras",
+ "offsite_conversion.fb_pixel_purchase":"Compras (pixel)",follow:"Novos seguidores",profile_visit:"Visitas ao perfil"};
+function adsLabel(t){return ADS_ACT[t]||t.replace(/^onsite_conversion\.|^offsite_conversion\./,"").replace(/_/g," ");}
+function money(n){return n==null?"—":"R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function adsWin(w){adsW=w;renderAds();}
+function renderAds(){
+  const host=$("#adsBody");if(!host)return;const A=B.ads;
+  document.querySelectorAll("#adsBar [data-aw]").forEach(b=>b.classList.toggle("active",+b.dataset.aw===adsW));
+  if(!A){host.innerHTML=`<div class="empty">Para ver seus anúncios aqui, cadastre o secret <b>AD_ACCOUNT_ID</b> (no formato <code>act_123456</code>) e um token com permissão <b>ads_read</b> (secret <b>ADS_TOKEN</b>) no repositório, e rode o robô.</div>`;return;}
+  const p=A.periods&&A.periods[adsW];
+  if(!p){host.innerHTML=`<div class="empty">Conta de anúncios conectada (<b>${A.account||""}</b>), mas sem dados neste período — confirme que o token tem <b>ads_read</b> e que houve investimento em ${adsW} dias.</div>`;return;}
+  const kpis=[["Investimento",money(p.spend)],["Alcance",fmt(p.reach)],["Impressões",fmt(p.impressions)],
+   ["Frequência",p.frequency?p.frequency.toFixed(2):"—"],["Cliques",fmt(p.clicks)],["CTR",p.ctr?pct(p.ctr):"—"],["CPM",money(p.cpm)]];
+  let h=`<div class="grid kpis">${kpis.map(x=>`<div class="card kpi"><div class="lbl">${x[0]} · ${adsW}D</div><div class="val">${x[1]}</div></div>`).join("")}</div>`;
+  const acts=Object.entries(p.actions||{}).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  if(acts.length){
+    h+=`<div class="sectitle">🎯 Resultados <span class="tag">por tipo de ação</span></div>`;
+    h+=`<div class="card" style="overflow-x:auto"><table class="ctbl"><thead><tr><th>Resultado</th><th class="num">Qtd.</th><th class="num">Custo/result.</th></tr></thead><tbody>`+
+      acts.map(([k,v])=>`<tr><td>${adsLabel(k)}</td><td class="num">${fmt(v)}</td><td class="num">${p.cpa&&p.cpa[k]!=null?money(p.cpa[k]):"—"}</td></tr>`).join("")+`</tbody></table></div>`;
+  }
+  const top=(A.topAds||[]);
+  if(top.length){
+    h+=`<div class="sectitle">🏆 Top anúncios <span class="tag">por investimento · 28d</span></div>`;
+    h+=`<div class="card" style="overflow-x:auto"><table class="ctbl"><thead><tr><th>Anúncio</th><th class="num">Gasto</th><th class="num">Alcance</th><th class="num">CTR</th><th class="num">CPM</th></tr></thead><tbody>`+
+      top.map(a=>`<tr><td title="${(a.name||"").replace(/"/g,"&quot;")}">${(a.name||"(sem nome)").slice(0,60)}</td><td class="num">${money(a.spend)}</td><td class="num">${fmt(a.reach)}</td><td class="num">${a.ctr?pct(a.ctr):"—"}</td><td class="num">${money(a.cpm)}</td></tr>`).join("")+`</tbody></table></div>`;
+  }
+  h+=`<div class="foot">Conta ${A.account||""} · atualizado ${A.updated?new Date(A.updated).toLocaleString("pt-BR"):"—"} · valores na moeda da conta de anúncios</div>`;
+  host.innerHTML=h;
+}
+
 /* ===== Comparar dois períodos ===== */
 let CMPW=28, CA={days:28,from:null,to:null}, CB={prev:true,from:null,to:null,days:28};
 function cmpSetA(d){CA={days:d,from:null,to:null};$("#caF").value="";$("#caT").value="";renderCompare();}
@@ -645,7 +690,7 @@ function renderDiag(){
 }
 
 /* tabs */
-const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",audience:"audience",goals:"goals",history:"history"};
+const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",ads:"ads",audience:"audience",goals:"goals",history:"history"};
 $("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");
   document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));$("#"+SEC[t.dataset.t]).classList.add("active");});

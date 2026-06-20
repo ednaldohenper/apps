@@ -40,6 +40,8 @@ jobs:
           FB_APP_ID:     ${{ secrets.FB_APP_ID }}
           FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AD_ACCOUNT_ID: ${{ secrets.AD_ACCOUNT_ID }}
+          ADS_TOKEN:     ${{ secrets.ADS_TOKEN }}
           VAULT_DIR:     vault
         run: node scripts/instagram-fetch.mjs
 

@@ -121,6 +121,38 @@ async function buildTotals(token){ // totais por período: 7/28/90 dias
   }
   return out;
 }
+/* ---------- Anúncios (Marketing API) ---------- */
+function adsAcct(){ let a=(process.env.AD_ACCOUNT_ID||"").trim(); if(!a) return ""; return a.startsWith("act_")?a:("act_"+a.replace(/^act_/,"")); }
+const _ymd=ms=>new Date(ms).toISOString().slice(0,10);
+async function adsPeriod(token,acct,days){
+  const tr=encodeURIComponent(JSON.stringify({since:_ymd(Date.now()-days*864e5),until:_ymd(Date.now())}));
+  try{
+    const j=await api(token,`${acct}/insights?fields=spend,impressions,reach,frequency,clicks,ctr,cpm,actions,cost_per_action_type&time_range=${tr}`);
+    const r=j?.data?.[0]; if(!r) return null;
+    const actions={}; (r.actions||[]).forEach(a=>actions[a.action_type]=+a.value);
+    const cpa={}; (r.cost_per_action_type||[]).forEach(a=>cpa[a.action_type]=+a.value);
+    return {spend:+r.spend||0,impressions:+r.impressions||0,reach:+r.reach||0,frequency:+r.frequency||0,clicks:+r.clicks||0,ctr:+r.ctr||0,cpm:+r.cpm||0,actions,cpa};
+  }catch(e){ console.error(`ads ${days}d: ${e.message}`); return null; }
+}
+async function adsTop(token,acct,days,limit=12){
+  const tr=encodeURIComponent(JSON.stringify({since:_ymd(Date.now()-days*864e5),until:_ymd(Date.now())}));
+  try{
+    const j=await api(token,`${acct}/insights?level=ad&limit=200&fields=ad_id,ad_name,spend,impressions,reach,frequency,clicks,ctr,cpm,actions&time_range=${tr}`);
+    const rows=(j?.data||[]).map(r=>{const actions={};(r.actions||[]).forEach(a=>actions[a.action_type]=+a.value);
+      return {id:r.ad_id,name:r.ad_name,spend:+r.spend||0,reach:+r.reach||0,impressions:+r.impressions||0,clicks:+r.clicks||0,ctr:+r.ctr||0,cpm:+r.cpm||0,actions};});
+    rows.sort((a,b)=>b.spend-a.spend);
+    return rows.slice(0,limit);
+  }catch(e){ console.error(`ads top ${days}d: ${e.message}`); return []; }
+}
+async function buildAds(token){
+  const acct=adsAcct(); if(!acct){ console.log("Sem AD_ACCOUNT_ID — anúncios pulados."); return null; }
+  const t=(process.env.ADS_TOKEN||"").trim()||token;
+  const periods={}; for(const d of [7,28,90]) periods[d]=await adsPeriod(t,acct,d);
+  const topAds=await adsTop(t,acct,28,12);
+  const ok=Object.values(periods).some(Boolean)||topAds.length;
+  console.log(ok?`Anúncios coletados (${acct}).`:`Anúncios: nada retornado (confira ads_read no token e gasto no período) — ${acct}.`);
+  return {account:acct, updated:new Date().toISOString(), periods, topAds};
+}
 /* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
 function aiStats(media){
   const r=media.map(p=>p.reach).filter(x=>x>0).sort((a,b)=>a-b);
@@ -346,6 +378,7 @@ async function main(){
   const media=(mediaR.data||[]).map(parsePost);
   const series=await buildSeries(token).catch(()=>[]);
   const totals=await buildTotals(token).catch(()=>({}));
+  const ads=await buildAds(token).catch(e=>{console.error("Falha em anúncios:",e.message);return null;});
   const demoData={ city:await demo(token,"city").catch(()=>[]),
                    gender:await demo(token,"gender").catch(()=>[]),
                    age:await demo(token,"age").catch(()=>[]) };
@@ -361,7 +394,7 @@ async function main(){
     reachDay:accMetric(accDay,"reach"), viewsDay:accMetric(accDay,"views"),
     profileViews:accMetric(accDay,"profile_views"), engaged:accMetric(accDay,"accounts_engaged")};
 
-  const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, demo:demoData, history };
+  const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, ads, demo:demoData, history };
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
   bundle.compare=await aiCompare(bundle, prev.compare);
   writeVaultDoc(bundle);
