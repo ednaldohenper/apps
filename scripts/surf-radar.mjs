@@ -11,23 +11,25 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 /* ---------- Tavily ---------- */
-async function tavily(query,{topic="general",days=3,max=6}={}){
+async function tavily(query,{topic="general",days=3,max=6,domains=null}={}){
   const key=process.env.TAVILY_API_KEY; if(!key) return null;
   try{
     const body={api_key:key,query,search_depth:"advanced",max_results:max,include_answer:true,topic};
     if(topic==="news") body.days=days;
+    if(domains&&domains.length) body.include_domains=domains;
     const r=await fetch("https://api.tavily.com/search",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     const j=await r.json(); if(j.error||j.detail) throw new Error(JSON.stringify(j.error||j.detail));
     return {q:query,answer:j.answer||"",results:(j.results||[]).map(x=>({title:x.title,url:x.url,content:(x.content||"").slice(0,400),published:x.published_date||null}))};
   }catch(e){ console.error(`Tavily "${query.slice(0,40)}…": ${e.message}`); return {q:query,answer:"",results:[],erro:e.message}; }
 }
+const BR=["g1.globo.com","ge.globo.com","gshow.globo.com","folha.uol.com.br","estadao.com.br","uol.com.br","cnnbrasil.com.br","infomoney.com.br","exame.com","valor.globo.com","metropoles.com","oglobo.globo.com","terra.com.br","veja.abril.com.br","band.uol.com.br"];
 const QUERIES=[
-  ["assuntos mais comentados e virais no Brasil esta semana","news"],
-  ["notícias de empresas e mercado no Brasil agora: demissões, aquisições, escândalos, falências, casos de gestão","news"],
-  ["repercussão do esporte no Brasil esta semana: futebol, seleção, técnicos, atletas","news"],
-  ["famosos, novela, cultura pop e polêmicas em alta no Brasil esta semana","news"],
-  ["debates sobre trabalho, liderança, geração Z e home office no Brasil","general"],
-  ["Google Trends Brasil termos em ascensão e trending topics do Twitter Brasil hoje","general"],
+  {q:"assuntos mais comentados, virais e polêmicas em alta no Brasil esta semana",topic:"news",domains:BR},
+  {q:"empresas e mercado no Brasil: demissões, aquisições, escândalos, falências, casos de gestão e liderança",topic:"news",domains:BR},
+  {q:"repercussão do esporte no Brasil esta semana: futebol, seleção, técnicos e atletas",topic:"news",domains:BR},
+  {q:"famosos, novela, BBB, cultura pop e celebridades em alta no Brasil esta semana",topic:"news",domains:BR},
+  {q:"debates sobre trabalho, liderança, geração Z, home office e gestão de pessoas no Brasil",topic:"general"},
+  {q:"o que está em alta no Google Trends Brasil e trending topics do Twitter Brasil hoje",topic:"general"},
 ];
 
 /* ---------- Apify (trends — opcional, best-effort) ---------- */
@@ -65,8 +67,12 @@ async function aiRadar(radar,trends){
   const system=`${contexto}\n\nVocê é o RADAR DE SURF do Ednaldo Henper — cientista do comportamento e estrategista de negócios (NUNCA "coach"). Público: donos de pequenas e médias empresas, sobrecarregados, que centralizam tudo e vivem apagando incêndio. Você gera os assuntos quentes da semana que ele pode surfar em Reels para VIRALIZAR (newsjack), lendo cada acontecimento pela lente de COMPORTAMENTO, GESTÃO e LIDERANÇA.
 FILTRO DE SURFABILIDADE: só entram acontecimentos que conectam de forma HONESTA com comportamento, gestão, liderança, equipe, decisão ou dependência do dono. Descarte o que não tem ponte natural — não force. Melhor 5 ótimos que 20 fracos.
 REGRAS: Português do Brasil. NÃO invente fatos nem números — cada tema precisa de uma fonte REAL e recente vinda das buscas (use a URL real). NÃO glorificar o sofrimento do empresário (ângulo morto). Voz direta, sem "não é X, é Y" repetido, sem emoji decorativo, vende o destino. Acontecimento sensível (tragédia, morte, política partidária pesada): marque Surfabilidade "Baixa" e explique o risco no campo risco — nunca force humor ou oportunismo.`;
-  const instr=`Com base nas buscas (últimas 72h) e nos trends, gere ATÉ 8 temas surfáveis, ordenados por potencial viral (maior primeiro). Registre chamando a ferramenta responder.
-Para cada tema: acontecimento (1 linha), quente_porque (por que está em alta + sinal de volume: trending/nº de posts/manchetes), janela (quente até quando — ex: 48h, fim de semana), angulo (a leitura de gestão/comportamento do Ednaldo, 1-2 frases), gancho (frase de abertura de 2 segundos, pronta pra gravar, entre aspas no texto final), surfabilidade (Alta|Média|Baixa), palavra_chave (palavra do Direct, ex: MAESTRO, DIAGNÓSTICO), fonte (URL real e recente das buscas), risco (só se sensível). Não invente fonte: se não houver URL real para um tema, descarte o tema.`;
+  const instr=`As buscas JÁ FORAM EXECUTADAS pelo robô e os resultados REAIS (com URLs verdadeiras) estão no bloco DADOS abaixo. Você NÃO precisa e NÃO deve buscar nada nem dizer que não tem acesso — apenas SELECIONE e INTERPRETE os acontecimentos que já estão em DADOS. Use SOMENTE URLs que aparecem em DADOS.
+Gere ATÉ 8 temas surfáveis, ordenados por potencial viral (maior primeiro). Registre chamando a ferramenta responder.
+Para cada tema: acontecimento (1 linha), quente_porque (por que está em alta + sinal de volume: manchetes/repercussão), janela (quente até quando — ex: 48h, fim de semana), angulo (a leitura de gestão/comportamento do Ednaldo, 1-2 frases), gancho (frase de abertura de 2 segundos, pronta pra gravar), surfabilidade (Alta|Média|Baixa), palavra_chave (palavra do Direct, ex: MAESTRO, DIAGNÓSTICO), fonte (uma URL EXATA copiada de DADOS), risco (só se sensível).
+Se um acontecimento não tiver ponte honesta com comportamento/gestão/liderança, descarte-o. Se realmente nenhum dos resultados em DADOS for surfável, devolva temas:[] e explique no resumo — mas isso é raro, quase sempre há ângulo.
+DADOS (resultados reais das buscas — escolha daqui):
+${JSON.stringify(dossie).slice(0,120000)}`;
   const tema={type:"object",properties:{
     acontecimento:{type:"string"},quente_porque:{type:"string"},janela:{type:"string"},
     angulo:{type:"string"},gancho:{type:"string"},
