@@ -1,0 +1,55 @@
+name: Market Study
+
+# Estudo de mercado (Tavily + Apify + IA). Só dispara MANUALMENTE na aba Actions,
+# porque Apify/Tavily são pagos por uso e tendência de mercado muda devagar.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  market:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Trazer contexto do vault
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: ednaldohenper/obsidian-vault
+          token: ${{ secrets.VAULT_TOKEN }}
+          path: vault
+
+      - name: Rodar estudo de mercado
+        env:
+          APP_DIR:           instagram
+          DASH_PASSWORD:     ${{ secrets.DASH_PASSWORD }}
+          TAVILY_API_KEY:    ${{ secrets.TAVILY_API_KEY }}
+          APIFY_TOKEN:       ${{ secrets.APIFY_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VAULT_DIR:         vault
+        run: node scripts/market-fetch.mjs
+
+      - name: Salvar no repositório
+        run: |
+          git config user.name  "instagram-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add instagram/market.enc
+          git commit -m "mercado: estudo atualizado ($(date -u +%Y-%m-%d))" || echo "Sem mudanças"
+          git push
+
+      - name: Salvar estudo no vault
+        continue-on-error: true
+        working-directory: vault
+        run: |
+          git config user.name  "instagram-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          git commit -m "mercado: estudo diário ($(date -u +%Y-%m-%d))" || echo "Sem mudanças"
+          git push

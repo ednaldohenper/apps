@@ -1,0 +1,22 @@
+{
+  "_leiame": "Configuração do Estudo de Mercado (roda manual, na aba Actions > Market Study). Edite as listas abaixo. Concorrentes: coloque só o @ (sem o arroba) de cada perfil. Enquanto a lista estiver vazia, o Apify NÃO é chamado (custo zero). market_queries são as buscas de tendência do Tavily. Os 'actors' do Apify podem ficar nos padrões.",
+  "competitors_instagram": [],
+  "competitors_tiktok": [],
+  "competitors_youtube": [],
+  "market_queries": [
+    "tendências de gestão e liderança para donos de pequenos e médios negócios no Brasil 2026",
+    "o que está funcionando em conteúdo de Instagram e Reels para experts e mentores de negócios 2026",
+    "lançamentos, ofertas e posicionamento de mentorias de gestão empresarial no Brasil",
+    "mudanças no comportamento do dono de pequeno negócio brasileiro e suas dores atuais",
+    "ganchos e formatos de conteúdo viral sobre gestão de pessoas e cultura de empresa"
+  ],
+  "actors": {
+    "instagram": "apify~instagram-scraper",
+    "tiktok": "clockworks~tiktok-scraper",
+    "youtube": "streamers~youtube-scraper"
+  },
+  "limits": {
+    "posts_per_profile": 12,
+    "results_per_query": 6
+  }
+}

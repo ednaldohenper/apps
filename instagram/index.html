@@ -116,6 +116,7 @@
     <div class="tab" data-t="content">Conteúdo</div>
     <div class="tab" data-t="ads">Anúncios</div>
     <div class="tab" data-t="multi">Multicanal</div>
+    <div class="tab" data-t="market">Mercado</div>
     <div class="tab" data-t="audience">Audiência</div>
     <div class="tab" data-t="goals">Metas</div>
     <div class="tab" data-t="history">Histórico</div>
@@ -208,6 +209,10 @@
     <div class="sectitle" style="margin-top:0">🌐 Visão multicanal <span class="tag">via Windsor.ai · ~28 dias</span></div>
     <div id="multiBody"></div>
   </section>
+  <section id="market">
+    <div class="sectitle" style="margin-top:0">🔭 Estudo de mercado <span class="tag">Tavily + Apify + IA · manual</span></div>
+    <div id="marketBody"></div>
+  </section>
   <section id="audience">
     <div class="twocol">
       <div class="card"><div class="sectitle" style="margin-top:0">🌎 Top cidades</div><div id="cities"></div></div>
@@ -246,7 +251,7 @@
 
 <script>
 const DATA_URL="data.enc", LS_GOALS="ig_goals_hosted";
-let B=null, STATE={};
+let B=null, MKT=null, STATE={};
 const $=s=>document.querySelector(s);
 const fmt=n=>n==null?"—":Number(n).toLocaleString("pt-BR");
 const pct=n=>n==null?"—":n.toLocaleString("pt-BR",{maximumFractionDigits:1})+"%";
@@ -271,6 +276,7 @@ async function open_(){
     if(!r.ok) throw new Error("Dados ainda não publicados. Rode o robô (Actions) uma vez.");
     const enc=(await r.text()).trim();
     B=await decrypt(enc,pass);
+    try{ const rm=await fetch("market.enc?t="+Date.now()); if(rm.ok){ MKT=await decrypt((await rm.text()).trim(),pass); } }catch{ MKT=null; }
     sessionStorage.setItem("p",pass);
     $("#gate").style.display="none";$("#app").style.display="block";
     build();renderAll();
@@ -341,7 +347,7 @@ function renderSeries(){
     `<div class="card kpi"><div class="lbl">Interações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.inter)}</div><div class="sub">${note}</div></div>`;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderGrowth();renderAI();renderCompare();renderAds();renderMulti();renderAudience();renderGoals();renderHistory();applyPeriod();
+function renderAll(){renderHeader();renderGrowth();renderAI();renderCompare();renderAds();renderMulti();renderMarket();renderAudience();renderGoals();renderHistory();applyPeriod();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -655,6 +661,55 @@ function renderMulti(){
   host.innerHTML=h;
 }
 
+/* ===== Estudo de Mercado (Tavily + Apify) ===== */
+const MKIND={instagram:"📸 Instagram",tiktok:"🎵 TikTok",youtube:"▶️ YouTube"};
+function renderMarket(){
+  const host=$("#marketBody");if(!host)return;const M=MKT;
+  if(!M){host.innerHTML=`<div class="empty">O <b>estudo de mercado</b> aparece depois de cadastrar os secrets <b>TAVILY_API_KEY</b> e <b>APIFY_TOKEN</b>, listar concorrentes em <code>instagram/market.json</code> e rodar o workflow <b>Market Study</b> (aba Actions). Ele lê tendências do mercado e o que os concorrentes estão fazendo — pela lente do seu método.</div>`;return;}
+  const a=M.ai;const recs=(arr,ic)=>(arr||[]).map(r=>`<div class="rec"><div class="ic">${ic||"•"}</div><div><h4>${r.titulo||""}</h4><p>${r.texto||""}</p></div></div>`).join("");
+  let h="";
+  if(a){
+    if(a.resumo) h+=`<div class="card" style="border-color:var(--acc)"><div class="sectitle" style="margin-top:0">🧭 Leitura do mercado</div><p style="font-size:15px;line-height:1.6">${a.resumo}</p></div>`;
+    if(a.tendencias&&a.tendencias.length) h+=`<div class="sectitle">📈 Tendências do mercado</div>${recs(a.tendencias,"📈")}`;
+    if(a.oportunidades&&a.oportunidades.length) h+=`<div class="sectitle">🚀 Oportunidades (brechas)</div>${recs(a.oportunidades,"🚀")}`;
+    if(a.ameacas&&a.ameacas.length) h+=`<div class="sectitle">⚠️ Ameaças / movimentos</div>${recs(a.ameacas,"⚠️")}`;
+    if(a.concorrentes_leitura) h+=`<div class="card"><div class="sectitle" style="margin-top:0">🎯 Leitura dos concorrentes</div><p style="font-size:14px;line-height:1.6;color:var(--mut)">${a.concorrentes_leitura}</p></div>`;
+    if(a.angulos&&a.angulos.length) h+=`<div class="card"><div class="sectitle" style="margin-top:0">✍️ Ângulos para surfar</div><ul style="margin:0;padding-left:20px;line-height:1.9;font-size:14px">${a.angulos.map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+  } else {
+    h+=`<div class="empty">Dados coletados, mas a síntese de IA não rodou (confira o <b>ANTHROPIC_API_KEY</b>). Veja os dados crus abaixo.</div>`;
+  }
+  // Concorrentes
+  const C=M.competitors||{};
+  for(const k of ["instagram","tiktok","youtube"]){
+    const list=C[k]||[];if(!list.length)continue;
+    h+=`<div class="sectitle">${MKIND[k]} <span class="tag">${list.length} perfil(s)</span></div>`;
+    h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">`;
+    for(const c of list){
+      const tt=(c.top_posts||[]).map(p=>`<div style="font-size:12px;color:var(--mut);padding:4px 0;border-top:1px solid var(--line)">“${(p.texto||"").replace(/</g,"&lt;")||"—"}” <span style="white-space:nowrap">· ❤ ${fmt(p.likes)}${p.views?" · ▶ "+fmt(p.views):""}</span></div>`).join("");
+      h+=`<div class="card"><div class="sectitle" style="margin-top:0">@${c.handle}</div>`+
+        `<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-bottom:6px">`+
+        `<span>📦 ${fmt(c.posts)} posts</span><span>❤ ${fmt(c.media_likes)}</span><span>💬 ${fmt(c.media_comentarios)}</span>`+
+        (c.media_views?`<span>▶ ${fmt(c.media_views)}</span>`:"")+(c.cadencia_dias!=null?`<span>🗓 ${c.cadencia_dias}d</span>`:"")+(c.seguidores?`<span>👥 ${fmt(c.seguidores)}</span>`:"")+`</div>`+
+        (c.temas&&c.temas.length?`<div style="font-size:12px;color:var(--mut);margin-bottom:4px">temas: ${c.temas.join(", ")}</div>`:"")+
+        tt+`</div>`;
+    }
+    h+=`</div>`;
+  }
+  // Radar (fontes)
+  const R=M.radar||[];
+  if(R.length){
+    h+=`<div class="sectitle">🔎 Radar de mercado <span class="tag">buscas web</span></div>`;
+    for(const r of R){
+      if(!r||(!r.answer&&!(r.results||[]).length))continue;
+      h+=`<div class="card"><div style="font-weight:600;font-size:14px;margin-bottom:4px">${r.q||""}</div>`+
+        (r.answer?`<p style="font-size:13px;line-height:1.5;color:var(--mut)">${r.answer}</p>`:"")+
+        `<div style="font-size:12px">${(r.results||[]).slice(0,4).map(x=>`<a href="${x.url}" target="_blank" rel="noopener" style="color:var(--acc);display:block;padding:2px 0">↗ ${(x.title||x.url||"").slice(0,90)}</a>`).join("")}</div></div>`;
+    }
+  }
+  h+=`<div class="foot">Estudo de mercado · atualizado ${M.updated?new Date(M.updated).toLocaleString("pt-BR"):"—"}${a?" · síntese "+(a.model||""):""}</div>`;
+  host.innerHTML=h;
+}
+
 /* ===== Comparar dois períodos ===== */
 let CMPW=28, CA={days:28,from:null,to:null}, CB={prev:true,from:null,to:null,days:28};
 function cmpSetA(d){CA={days:d,from:null,to:null};$("#caF").value="";$("#caT").value="";renderCompare();}
@@ -757,7 +812,7 @@ function renderDiag(){
 }
 
 /* tabs */
-const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",ads:"ads",multi:"multi",audience:"audience",goals:"goals",history:"history"};
+const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",ads:"ads",multi:"multi",market:"market",audience:"audience",goals:"goals",history:"history"};
 const PBAR_TABS=new Set(["overview","content"]); // barra de período global só vale nessas abas
 function syncPbar(tab){const pb=$("#periodBar");if(pb)pb.style.display=PBAR_TABS.has(tab)?"":"none";}
 $("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;
