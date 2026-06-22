@@ -208,15 +208,23 @@ async function aiMarket(radar,competitors,prev){
   const instr=`Analise o radar de mercado (buscas web), os concorrentes (perfis raspados) e os posts que mais performaram. Devolva SOMENTE um JSON válido neste formato:
 {"resumo":"3-5 frases: o que está acontecendo no mercado agora e o que isso significa pro Ednaldo","tendencias":[{"titulo":"...","texto":"tendência de mercado/comportamento e por que importa"}],"oportunidades":[{"titulo":"...","texto":"brecha que ele pode ocupar, com base no que o mercado/concorrentes fazem ou deixam de fazer"}],"ameacas":[{"titulo":"...","texto":"movimento de concorrente ou do mercado que merece atenção"}],"concorrentes_leitura":"1-2 parágrafos: o que funciona pra quem, cadência, temas e ângulos que repetem — e onde estão os vazios","angulos":["ângulo/gancho de conteúdo específico pra surfar a tendência, no estilo Maman","..."],"posts_destaque":[{"id":0,"porque":"2-3 frases: por que ESTE post provavelmente performou — gancho, formato, emoção, timing, dor que tocou (use a lente comportamental)","licao":"1 frase: o que o Ednaldo pode aplicar disso no conteúdo dele"}]}
 Regras: 3 a 5 itens em tendências/oportunidades; 2 a 4 em ameaças; 4 a 6 em ângulos; em posts_destaque, analise CADA item de "posts_que_performaram" pelo seu id (não invente posts); cite nomes de concorrentes e números reais quando houver; se concorrentes vier vazio, foque no radar e diga que faltam perfis cadastrados.
+IMPORTANTE (formato): devolva JSON 100% válido. NÃO use aspas duplas (") dentro dos textos — use aspas simples (') quando precisar citar. Não quebre linha dentro dos valores. Não inclua nada além do JSON.
 DADOS:
 ${JSON.stringify(dossie).slice(0,120000)}`;
+  const parseLoose=s=>{
+    try{ return JSON.parse(s); }catch{}
+    // reparo: troca caracteres de controle por espaco e remove virgulas finais
+    const fixed=s.replace(/[\u0000-\u001F]/g," ").replace(/,\s*([}\]])/g,"$1");
+    return JSON.parse(fixed);
+  };
   try{
     const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
       headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
-      body:JSON.stringify({model,max_tokens:12000,system,messages:[{role:"user",content:instr}]})});
+      body:JSON.stringify({model,max_tokens:12000,system,messages:[{role:"user",content:instr}],stop_sequences:[]})});
     const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+    if(j.stop_reason==="max_tokens") console.warn("Aviso: resposta da IA atingiu max_tokens (pode truncar).");
     const text=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
-    const m=text.match(/\{[\s\S]*\}/); const parsed=JSON.parse(m?m[0]:text);
+    const m=text.match(/\{[\s\S]*\}/); const parsed=parseLoose(m?m[0]:text);
     console.log(`Síntese de mercado gerada (${model}).`);
     return {generated:new Date().toISOString(),model,...parsed};
   }catch(e){ console.error("Falha na síntese de mercado (mantendo anterior):",e.message); return prev||null; }
