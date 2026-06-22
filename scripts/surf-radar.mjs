@@ -125,7 +125,7 @@ function buildMd(ai,radar){
 
 async function main(){
   const radar=[];
-  for(const [q,topic] of QUERIES) radar.push(await tavily(q,{topic}));
+  for(const it of QUERIES) radar.push(await tavily(it.q,{topic:it.topic,domains:it.domains}));
   const got=radar.reduce((s,r)=>s+((r&&r.results)?r.results.length:0),0);
   console.log(`Radar (Tavily): ${radar.length} buscas · ${got} resultado(s).`);
   const trends=await apifyTrends();
