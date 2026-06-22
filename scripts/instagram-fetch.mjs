@@ -391,6 +391,51 @@ ${JSON.stringify(adsDossier(ads))}`;
     return {generated:new Date().toISOString(),model,...parsed};
   }catch(e){ console.error("Falha na inteligência de anúncios (mantendo a anterior):",e.message); return prev||null; }
 }
+/* ---------- Leitura multicanal (Windsor) com IA ---------- */
+const WSRC_LABEL={facebook:"Meta Ads",instagram:"Instagram orgânico",instagram_public:"Instagram orgânico",facebook_organic:"Facebook orgânico",tiktok_organic:"TikTok orgânico",tiktok:"TikTok Ads",youtube:"YouTube",google_ads:"Google Ads",linkedin_organic:"LinkedIn orgânico"};
+function multiDossier(w){
+  const r2=n=>Math.round(n*100)/100;
+  return (w.sources||[]).map(s=>{
+    const t=s.totais||{}; const d={canal:WSRC_LABEL[s.source]||s.source, slug:s.source, dias:s.dias, totais:{...t}};
+    const eng=t.total_interactions||t.total_engagements||((t.likes||0)+(t.comments||0)+(t.shares||0)+(t.saves||0))||t.engagement||0;
+    if(t.reach>0){ d.taxa_engajamento_pct=r2(eng/t.reach*100); d.alcance_por_dia=Math.round(t.reach/(s.dias||1)); }
+    if(t.results>0 && t.spend>0) d.custo_por_resultado=r2(t.spend/t.results);
+    if(t.conversions>0 && t.spend>0) d.custo_por_conversao=r2(t.spend/t.conversions);
+    if(t.followers) d.seguidores=t.followers;
+    return d;
+  });
+}
+async function aiMulti(bundle, prev){
+  const key=process.env.ANTHROPIC_API_KEY; if(!key) return prev||null;
+  const w=bundle.windsor; if(!w || !w.sources || !w.sources.length){ return prev||null; }
+  const model=process.env.AI_MODEL||"claude-opus-4-8";
+  const contexto=loadContext();
+  const dossie=multiDossier(w);
+  const system=`${contexto}\n\nVocê é o motor de LEITURA MULTICANAL do painel do Ednaldo (cientista do comportamento + estrategista; NUNCA "coach"). Português do Brasil, tom dele. Os canais são HETEROGÊNEOS: o Meta Ads tem investimento e resultados/leads (compare por custo por resultado e eficiência); os canais orgânicos (Instagram/TikTok/etc.) não têm verba, então compare por taxa de engajamento, alcance por dia e crescimento. NÃO compare maçã com laranja em números brutos — compare cada canal pela sua própria régua e diga, no geral, ONDE ele está colhendo melhor resultado pelo esforço/investimento. A vitrine vende o destino, não o método. Baseie cada afirmação nos números.`;
+  const instr=`Analise os canais (janela ~${w.from} a ${w.to}). Diga qual está melhor e por quê, e o que fazer pra potencializar. Registre o resultado chamando a ferramenta responder.
+Regras: em ranking, ordene do melhor (posicao 1) ao pior, com uma frase de porque por canal (use custo por resultado pro Ads e engajamento/alcance pros orgânicos); em potencializar, uma ação concreta por canal (onde dobrar a aposta, o que testar, o que cortar); se só houver 1 canal, foque em como potencializá-lo; alerta só se houver algo caro/ineficiente.
+DADOS:
+${JSON.stringify(dossie)}`;
+  const schema={type:"object",properties:{
+    resumo:{type:"string"},
+    vencedor:{type:"string"},
+    ranking:{type:"array",items:{type:"object",properties:{canal:{type:"string"},posicao:{type:"integer"},porque:{type:"string"}},required:["canal","posicao","porque"]}},
+    potencializar:{type:"array",items:{type:"object",properties:{canal:{type:"string"},acao:{type:"string"}},required:["canal","acao"]}},
+    alerta:{type:"string"}
+  },required:["resumo","vencedor","ranking","potencializar"]};
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model,max_tokens:3000,system,
+        tools:[{name:"responder",description:"Registra a leitura multicanal.",input_schema:schema}],
+        tool_choice:{type:"tool",name:"responder"},
+        messages:[{role:"user",content:instr}]})});
+    const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+    const tu=(j.content||[]).find(b=>b.type==="tool_use"); if(!tu||!tu.input) throw new Error("sem tool_use");
+    console.log("Leitura multicanal gerada.");
+    return {generated:new Date().toISOString(),model,...tu.input};
+  }catch(e){ console.error("Falha na leitura multicanal (mantendo anterior):",e.message); return prev||null; }
+}
 /* ---------- Documento de inteligência para o vault ---------- */
 function vaultDoc(b){
   const p=b.profile, media=(b.media||[]).filter(x=>x.type!=="AD");
@@ -526,6 +571,7 @@ async function main(){
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
   bundle.compare=await aiCompare(bundle, prev.compare);
   if(bundle.ads){ bundle.ads.ai=await aiAds(bundle, prev.ads?.ai); }
+  if(bundle.windsor){ bundle.windsor.ai=await aiMulti(bundle, prev.windsor?.ai); }
   writeVaultDoc(bundle);
   fs.mkdirSync(DIR,{recursive:true});
   fs.writeFileSync(DATA, encrypt(bundle,PASS));

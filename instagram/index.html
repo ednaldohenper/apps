@@ -659,14 +659,32 @@ function renderMulti(){
   if(!W.sources||!W.sources.length){host.innerHTML=`<div class="empty">Windsor conectado, mas nenhuma fonte retornou dados no período. Confira no Windsor.ai se os conectores (Meta Ads, Instagram, Facebook, TikTok) estão conectados e com dados nos últimos 28 dias.</div>`;return;}
   const order=["facebook","facebook_ads","instagram_public","instagram","facebook_organic","tiktok_organic","tiktok"];
   const srcs=W.sources.slice().sort((a,b)=>{const ia=order.indexOf(a.source),ib=order.indexOf(b.source);return (ia<0?99:ia)-(ib<0?99:ib);});
-  let h=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">`;
+  const eff=s=>{const t=s.totais||{};const o=[];
+    const eng=t.total_interactions||t.total_engagements||((t.likes||0)+(t.comments||0)+(t.shares||0)+(t.saves||0))||t.engagement||0;
+    if(t.reach>0){o.push(["Taxa de engajamento",pct(eng/t.reach*100)]);o.push(["Alcance/dia",fmt(Math.round(t.reach/(s.dias||1)))]);}
+    if(t.results>0&&t.spend>0)o.push(["Custo por resultado",money(t.spend/t.results)]);
+    else if(t.conversions>0&&t.spend>0)o.push(["Custo por conversão",money(t.spend/t.conversions)]);
+    return o;};
+  const A=W.ai; let h="";
+  if(A){
+    h+=`<div class="card" style="border-color:var(--acc)"><div class="sectitle" style="margin-top:0">🧭 Leitura multicanal${A.vencedor?` · 🏆 <span style="color:var(--acc)">${A.vencedor}</span>`:""}</div>`+
+       `<p style="font-size:15px;line-height:1.6">${A.resumo||""}</p>`+
+       ((A.ranking&&A.ranking.length)?`<div style="margin-top:8px">`+A.ranking.slice().sort((a,b)=>(a.posicao||9)-(b.posicao||9)).map(r=>`<div style="font-size:13px;padding:3px 0">${r.posicao}. <b>${r.canal}</b> — <span style="color:var(--mut)">${r.porque||""}</span></div>`).join("")+`</div>`:"")+`</div>`;
+    if(A.potencializar&&A.potencializar.length) h+=`<div class="card"><div class="sectitle" style="margin-top:0">🚀 Como potencializar</div>`+A.potencializar.map(p=>`<div style="font-size:14px;padding:5px 0;border-bottom:1px solid var(--line)"><b>${p.canal}:</b> ${p.acao}</div>`).join("")+`</div>`;
+    if(A.alerta) h+=`<div class="card" style="border-color:var(--bad,#c0392b)"><div class="sectitle" style="margin-top:0">⚠️ Atenção</div><p style="font-size:14px;line-height:1.55">${A.alerta}</p></div>`;
+  } else {
+    h+=`<div class="empty" style="margin-bottom:12px">A <b>leitura multicanal da IA</b> (qual canal está melhor e o que potencializar) aparece na próxima rodada do robô, com o <b>ANTHROPIC_API_KEY</b> ativo. Abaixo, os números por canal.</div>`;
+  }
+  h+=`<div class="sectitle">📊 Números por canal</div>`;
+  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">`;
   for(const s of srcs){
+    const e=eff(s).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)"><span style="color:var(--acc);font-size:13px;font-weight:600">${k}</span><span style="font-weight:700;font-size:14px">${v}</span></div>`).join("");
     const keys=WORDER.filter(k=>s.totais[k]!=null).concat(Object.keys(s.totais).filter(k=>!WORDER.includes(k)));
     const rows=keys.slice(0,8).map(k=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)"><span style="color:var(--mut);font-size:13px">${WLAB[k]||k}</span><span style="font-weight:600;font-size:14px">${wval(k,s.totais[k])}</span></div>`).join("");
-    h+=`<div class="card"><div class="sectitle" style="margin-top:0">${WICON[s.source]||"🌐"} ${wlabel(s.source)} <span class="tag">${s.dias}d</span></div>${rows||'<div class="empty">Sem métricas.</div>'}</div>`;
+    h+=`<div class="card"><div class="sectitle" style="margin-top:0">${WICON[s.source]||"🌐"} ${wlabel(s.source)} <span class="tag">${s.dias}d</span></div>${e}${rows||'<div class="empty">Sem métricas.</div>'}</div>`;
   }
   h+=`</div>`;
-  h+=`<div class="foot">Fonte: Windsor.ai · janela ${W.from||""} → ${W.to||""} · ${W.rowCount||0} linhas · atualizado ${W.updated?new Date(W.updated).toLocaleString("pt-BR"):"—"}</div>`;
+  h+=`<div class="foot">Fonte: Windsor.ai · janela ${W.from||""} → ${W.to||""} · ${W.rowCount||0} linhas${A?" · leitura "+(A.model||"IA"):""} · atualizado ${W.updated?new Date(W.updated).toLocaleString("pt-BR"):"—"}</div>`;
   host.innerHTML=h;
 }
 
