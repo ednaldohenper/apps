@@ -144,13 +144,29 @@ async function adsTop(token,acct,days,limit=12){
     return rows.slice(0,limit);
   }catch(e){ console.error(`ads top ${days}d: ${e.message}`); return []; }
 }
+async function adsDiagnose(token,acct){
+  // Quando os anúncios falham, descobre QUEM é o token e QUAIS contas ele enxerga.
+  try{
+    const me=await api(token,`me?fields=id,name`);
+    console.log(`Ads diag — token é de: ${me?.name||"?"} (id ${me?.id||"?"}).`);
+  }catch(e){ console.log(`Ads diag — me: ${e.message}`); }
+  try{
+    const j=await api(token,`me/adaccounts?fields=id,account_id,name,account_status&limit=100`);
+    const list=(j?.data||[]).map(a=>`${a.id} (${a.name||"sem nome"}, status ${a.account_status})`);
+    console.log(list.length?`Ads diag — contas visíveis (${list.length}): ${list.join(" | ")}`:`Ads diag — token não enxerga NENHUMA conta de anúncio (provável: faltou ads_read na geração ou o usuário do token não está atribuído a nenhuma conta).`);
+    const want=acct.replace(/^act_/,"");
+    const hit=(j?.data||[]).some(a=>a.account_id===want||a.id===acct);
+    console.log(hit?`Ads diag — a conta alvo ${acct} ESTÁ na lista (acesso ok; se ainda falha, é gasto zero no período ou app sem ads_read).`:`Ads diag — a conta alvo ${acct} NÃO está na lista: o token não tem acesso a ela. Corrija AD_ACCOUNT_ID ou atribua o usuário do token a essa conta.`);
+  }catch(e){ console.log(`Ads diag — adaccounts: ${e.message}`); }
+}
 async function buildAds(token){
   const acct=adsAcct(); if(!acct){ console.log("Sem AD_ACCOUNT_ID — anúncios pulados."); return null; }
   const t=(process.env.ADS_TOKEN||"").trim()||token;
   const periods={}; for(const d of [7,28,90]) periods[d]=await adsPeriod(t,acct,d);
   const topAds=await adsTop(t,acct,28,12);
   const ok=Object.values(periods).some(Boolean)||topAds.length;
-  console.log(ok?`Anúncios coletados (${acct}).`:`Anúncios: nada retornado (confira ads_read no token e gasto no período) — ${acct}.`);
+  if(ok){ console.log(`Anúncios coletados (${acct}).`); }
+  else { console.log(`Anúncios: nada retornado — ${acct}. Rodando autodiagnóstico…`); await adsDiagnose(t,acct); }
   return {account:acct, updated:new Date().toISOString(), periods, topAds};
 }
 /* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
