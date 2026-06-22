@@ -156,26 +156,30 @@ async function buildCompetitors(conf){
               youtube:await scrapeYoutube(conf.competitors_youtube||[],a.youtube||"streamers~youtube-scraper",lim) };
   const tot=out.instagram.length+out.tiktok.length+out.youtube.length;
   console.log(`Concorrentes (Apify): ${out.instagram.length} IG · ${out.tiktok.length} TikTok · ${out.youtube.length} YT (${tot} perfis).`);
-  // Melhor post de CADA concorrente (preferindo os últimos 30 dias)
+  // Top N posts de CADA concorrente (preferindo os últimos 30 dias)
+  const PER=conf.limits?.destaques_por_perfil||5;
   const cutoff=Date.now()-30*864e5;
   const score=p=>(p.views||0)*0.05 + p.likes + p.comments*4;
-  const bests=[];
+  let id=0; const groups=[]; const flat=[];
   for(const k of ["instagram","tiktok","youtube"]) for(const c of out[k]){
     const posts=c._posts||[]; delete c._posts;
     if(!posts.length) continue;
     const within=posts.filter(p=>{const t=p.ts?Date.parse(p.ts):NaN; return isNaN(t)||t>=cutoff;});
-    const pool=within.length?within:posts; // se nada nos 30d, usa o melhor histórico
-    const b=pool.slice().sort((x,y)=>score(y)-score(x))[0];
-    const er=b.followers?(b.likes+b.comments)/b.followers*100:null;
-    bests.push({handle:c.handle,kind:k,texto:b.texto,likes:b.likes,comments:b.comments,views:b.views,ts:b.ts,
-      url:b.url,img:b.img||null,recente:within.length>0,seguidores:b.followers||null,
-      engaj_pct:er!=null?Math.round(er*100)/100:null});
+    const pool=within.length?within:posts; // se nada nos 30d, usa o histórico
+    const top=pool.slice().sort((x,y)=>score(y)-score(x)).slice(0,PER).map(b=>{
+      const er=b.followers?(b.likes+b.comments)/b.followers*100:null;
+      const o={id:id++,texto:b.texto,likes:b.likes,comments:b.comments,views:b.views,ts:b.ts,url:b.url,img:b.img||null,
+        engaj_pct:er!=null?Math.round(er*100)/100:null};
+      flat.push(o); return o;
+    });
+    groups.push({handle:c.handle,kind:k,seguidores:c.seguidores||null,recente:within.length>0,posts:top});
   }
-  bests.sort((a,b)=>score(b)-score(a));
-  for(const b of bests){ b.thumb=await fetchImageDataUri(b.img); } // embute a capa
-  out.destaques=bests.map((p,i)=>({id:i,...p}));
-  const comThumb=bests.filter(b=>b.thumb).length;
-  console.log(`Destaques: melhor post de ${out.destaques.length} concorrente(s) · ${comThumb} com capa embutida.`);
+  // embute as capas (com orçamento p/ não inchar o arquivo)
+  let budget=30;
+  for(const p of flat){ if(budget>0){ p.thumb=await fetchImageDataUri(p.img); if(p.thumb) budget--; } }
+  out.destaques=groups;
+  const comThumb=flat.filter(p=>p.thumb).length;
+  console.log(`Destaques: ${flat.length} post(s) de ${groups.length} concorrente(s) (até ${PER}/perfil) · ${comThumb} com capa embutida.`);
   return out;
 }
 
@@ -194,7 +198,9 @@ async function aiMarket(radar,competitors,prev){
   const key=process.env.ANTHROPIC_API_KEY; if(!key){ console.log("Sem ANTHROPIC_API_KEY — síntese pulada."); return prev||null; }
   const model=process.env.AI_MODEL||"claude-opus-4-8";
   const contexto=loadContext();
-  const destaques=(competitors.destaques||[]).map(d=>({id:d.id,perfil:d.handle,plataforma:d.kind,texto:d.texto,likes:d.likes,comentarios:d.comments,views:d.views,engaj_pct:d.engaj_pct}));
+  const destaques=[];
+  (competitors.destaques||[]).forEach(g=>(g.posts||[]).forEach(p=>destaques.push(
+    {id:p.id,perfil:g.handle,plataforma:g.kind,texto:p.texto,likes:p.likes,comentarios:p.comments,views:p.views,engaj_pct:p.engaj_pct})));
   const dossie={ radar_mercado:(radar||[]).map(r=>({pergunta:r.q,resposta:r.answer,fontes:(r.results||[]).slice(0,4).map(x=>({titulo:x.title,trecho:x.content}))})),
     concorrentes:{instagram:competitors.instagram,tiktok:competitors.tiktok,youtube:competitors.youtube},
     posts_que_performaram:destaques };
@@ -207,7 +213,7 @@ ${JSON.stringify(dossie).slice(0,120000)}`;
   try{
     const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
       headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
-      body:JSON.stringify({model,max_tokens:8000,system,messages:[{role:"user",content:instr}]})});
+      body:JSON.stringify({model,max_tokens:12000,system,messages:[{role:"user",content:instr}]})});
     const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
     const text=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
     const m=text.match(/\{[\s\S]*\}/); const parsed=JSON.parse(m?m[0]:text);
@@ -222,7 +228,8 @@ function writeVaultDoc(bundle){
   const a=bundle.ai; if(!a) return;
   const li=arr=>(arr||[]).map(x=>`- **${x.titulo||""}** — ${x.texto||""}`).join("\n");
   const comp=k=>(bundle.competitors[k]||[]).map(c=>`- **@${c.handle}** (${c.posts} posts · ~${c.media_likes} likes · cadência ${c.cadencia_dias??"?"}d) — temas: ${(c.temas||[]).join(", ")||"—"}`).join("\n");
-  const dst=(bundle.competitors.destaques||[]).map((d,i)=>`${i+1}. **@${d.handle}** (${d.kind}) — ❤ ${d.likes} · 💬 ${d.comments}${d.views?` · ▶ ${d.views}`:""}\n   > ${(d.texto||"").replace(/\n/g," ").slice(0,180)}\n   - **Por que performou:** ${d.porque||"—"}\n   - **Lição:** ${d.licao||"—"}`).join("\n\n");
+  const dst=(bundle.competitors.destaques||[]).map(g=>`### @${g.handle} (${g.kind})\n`+
+    (g.posts||[]).map((d,i)=>`${i+1}. ❤ ${d.likes} · 💬 ${d.comments}${d.views?` · ▶ ${d.views}`:""}${d.engaj_pct!=null?` · 📊 ${d.engaj_pct}%`:""}\n   > ${(d.texto||"").replace(/\n/g," ").slice(0,180)}\n   - **Por que performou:** ${d.porque||"—"}\n   - **Lição:** ${d.licao||"—"}`).join("\n")).join("\n\n");
   const md=`---
 tags: [instagram, mercado, concorrencia, auto]
 gerado: ${new Date().toISOString()}
@@ -254,7 +261,7 @@ ${comp("tiktok")||"— sem perfis —"}
 ### YouTube
 ${comp("youtube")||"— sem perfis —"}
 
-## Posts que mais performaram (últimos 30 dias)
+## Top posts por concorrente (até 5 · últimos 30 dias)
 ${dst||"— sem posts —"}
 
 ## Ângulos para surfar
@@ -276,7 +283,7 @@ async function main(){
   // injeta a análise "por que performou" em cada post de destaque
   if(bundle.ai && Array.isArray(bundle.ai.posts_destaque) && competitors.destaques){
     const m={}; bundle.ai.posts_destaque.forEach(x=>{ if(x&&x.id!=null) m[x.id]=x; });
-    competitors.destaques.forEach(d=>{ const a=m[d.id]; if(a){ d.porque=a.porque||""; d.licao=a.licao||""; } });
+    competitors.destaques.forEach(g=>(g.posts||[]).forEach(d=>{ const a=m[d.id]; if(a){ d.porque=a.porque||""; d.licao=a.licao||""; } }));
   }
   writeVaultDoc(bundle);
   fs.mkdirSync(DIR,{recursive:true});
