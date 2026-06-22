@@ -138,12 +138,17 @@
   </div>
 
   <section id="overview" class="active">
+    <div id="execBanner"></div>
     <div class="grid kpis" id="kpiGrid"></div>
+    <div class="sectitle">🧭 Gestão à vista <span class="tag">o melhor de cada área · clique pra abrir</span></div>
+    <div class="grid" id="cockpit" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px"></div>
+    <div class="sectitle">✅ Ações recomendadas <span class="tag">cockpit de gestão</span></div>
+    <div id="acoes"></div>
     <div class="sectitle">📊 Tendência da conta <span class="tag" id="seriesTag">no período</span></div>
     <div class="grid kpis" id="seriesChart"></div>
     <div class="sectitle">📈 Crescimento de seguidores <span class="tag" id="growthTag"></span></div>
     <div class="card"><div id="growthChart"></div></div>
-    <div class="sectitle">🧠 Inteligência & Recomendações <span class="tag">dos seus dados</span></div>
+    <div class="sectitle">🧠 Inteligência do conteúdo <span class="tag">dos seus posts</span></div>
     <div id="recs"></div>
   </section>
   <section id="ai">
@@ -356,7 +361,7 @@ function renderSeries(){
     `<div class="card kpi"><div class="lbl">Interações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.inter)}</div><div class="sub">${note}</div></div>`;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderGrowth();renderAI();renderCompare();renderAds();renderMulti();renderMarket();renderConc();renderAudience();renderGoals();renderHistory();applyPeriod();
+function renderAll(){renderHeader();renderExec();renderCockpit();renderAcoes();renderGrowth();renderAI();renderCompare();renderAds();renderMulti();renderMarket();renderConc();renderAudience();renderGoals();renderHistory();applyPeriod();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -407,6 +412,54 @@ function bestDay(m){const D=["Domingo","Segunda","Terça","Quarta","Quinta","Sex
   m.forEach(p=>{const d=spDay(p.date);(g[d]=g[d]||[]).push(p.reach);});let b=null;
   Object.entries(g).forEach(([d,a])=>{if(a.length<2)return;const r=a.reduce((s,x)=>s+x,0)/a.length;if(!b||r>b.reach)b={day:D[d],reach:r};});return b;}
 
+function go(t){const tab=document.querySelector(`.tab[data-t="${t}"]`);if(!tab)return;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));tab.classList.add("active");
+  document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));$("#"+SEC[t]).classList.add("active");
+  if(typeof syncPbar==="function")syncPbar(t);window.scrollTo({top:0,behavior:"smooth"});}
+function pill_(txt,kind){const c={ok:"#2ecc71",bad:"#ff5c7a",warn:"#f1c40f",mut:"var(--mut)"}[kind]||"var(--mut)";return `<span class="pill" style="border-color:${c};color:${c}">${txt}</span>`;}
+function vKind(v){return /rend/i.test(v)?"ok":/sang/i.test(v)?"bad":"warn";}
+function renderExec(){
+  const host=$("#execBanner");if(!host)return;const a=B.ai,h=histArr();const pills=[];
+  if(h.length>=2){const last=h[h.length-1].followers,back=h[Math.max(0,h.length-8)].followers,d=last-back;pills.push(pill_(`${d>=0?"▲":"▼"} ${d>=0?"+":""}${fmt(d)} seguidores/7d`,d>0?"ok":d<0?"bad":"mut"));}
+  const av=B.ads&&B.ads.ai&&B.ads.ai.veredito;if(av)pills.push(pill_("💸 "+av.split(/[.;:—-]/)[0].trim().slice(0,38),vKind(av)));
+  const w=B.windsor&&B.windsor.ai;if(w&&w.vencedor)pills.push(pill_("🏆 "+w.vencedor,"ok"));
+  let html=`<div class="card" style="border-color:var(--acc)"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div class="sectitle" style="margin:0">🧭 Resumo executivo</div><div style="display:flex;gap:6px;flex-wrap:wrap">${pills.join("")}</div></div>`;
+  html+=`<p style="font-size:15px;line-height:1.6;margin:10px 0 0">${(a&&a.resumo)||'<span style="color:var(--mut)">O diagnóstico da IA aparece após o robô rodar com o ANTHROPIC_API_KEY ativo.</span>'}</p></div>`;
+  host.innerHTML=html;
+}
+function ckCard(icon,title,big,sub,extra,tab){
+  return `<div class="card"${tab?` onclick="go('${tab}')" style="cursor:pointer"`:""}><div style="color:var(--mut);font-size:13px">${icon} ${title}</div><div style="font-size:26px;font-weight:800;margin:4px 0;line-height:1.15">${big}</div>${sub?`<div style="color:var(--mut);font-size:12px">${sub}</div>`:""}${extra||""}</div>`;
+}
+function renderCockpit(){
+  const host=$("#cockpit");if(!host)return;const cards=[];const h=histArr();
+  if(h.length>=2){const v=h.map(x=>x.followers),last=v[v.length-1],d7=last-v[Math.max(0,v.length-8)];
+    cards.push(ckCard("📈","Seguidores",fmt(last),`${d7>=0?"+":""}${fmt(d7)} em 7 dias`,miniLine(v,"#7c5cff"),"history"));}
+  const fb=((B.windsor&&B.windsor.sources)||[]).find(s=>s.source==="facebook");
+  if(fb){const t=fb.totais||{};const cpr=(t.results>0&&t.spend>0)?money(t.spend/t.results):null;const ver=B.ads&&B.ads.ai&&B.ads.ai.veredito;
+    cards.push(ckCard("💸","Meta Ads",cpr||money(t.spend||0),cpr?"custo por resultado · ~28d":"investido · ~28d",ver?`<div style="margin-top:8px">${pill_(ver.split(/[.;:—-]/)[0].trim().slice(0,30),vKind(ver))}</div>`:"","ads"));}
+  const w=B.windsor&&B.windsor.ai;
+  if(w&&w.vencedor){const r1=(w.ranking||[]).slice().sort((a,b)=>(a.posicao||9)-(b.posicao||9))[0];
+    cards.push(ckCard("🌐","Canal que mais rende",`<span style="font-size:20px">${w.vencedor}</span>`,r1?String(r1.porque||"").slice(0,82):"","","multi"));}
+  if(typeof MKT!=="undefined"&&MKT&&MKT.ai){const it=(MKT.ai.oportunidades||[])[0]||(MKT.ai.tendencias||[])[0];
+    if(it)cards.push(ckCard("🔭","Oportunidade de mercado",`<span style="font-size:16px">${it.titulo||""}</span>`,String(it.texto||"").slice(0,90),"","market"));}
+  if(typeof MKT!=="undefined"&&MKT&&MKT.competitors&&MKT.competitors.destaques){let best=null;
+    MKT.competitors.destaques.forEach(g=>(g.posts||[]).forEach(p=>{const sc=(p.likes||0)+(p.comments||0)*4+(p.views||0)*0.05;if(!best||sc>best._s)best={...p,handle:g.handle,_s:sc};}));
+    if(best){const src=best.thumb||best.img;const thumb=src?`<img src="${src}" referrerpolicy="no-referrer" onerror="this.style.display='none'" style="width:100%;height:88px;object-fit:cover;border-radius:8px;margin-top:8px">`:"";
+      cards.push(ckCard("🏆","Top post de concorrente",`<span style="font-size:18px">@${best.handle}</span>`,`❤ ${fmt(best.likes)} · 💬 ${fmt(best.comments)}${best.views?` · ▶ ${fmt(best.views)}`:""}`,thumb,"concorrentes"));}}
+  host.innerHTML=cards.join("")||`<div class="empty">O cockpit se preenche conforme os robôs rodam (Instagram, Anúncios, Windsor, Mercado).</div>`;
+}
+function renderAcoes(){
+  const host=$("#acoes");if(!host)return;const A=[];
+  const a=B.ai;
+  if(a&&a.pauta) a.pauta.slice(0,3).forEach(x=>A.push(["📝","Conteúdo",x]));
+  if(a&&a.atencao) a.atencao.slice(0,1).forEach(x=>A.push(["⚠️","Atenção",`<b>${x.titulo||""}</b> — ${x.texto||""}`]));
+  const ad=B.ads&&B.ads.ai;if(ad&&ad.acoes) ad.acoes.slice(0,2).forEach(x=>A.push(["💸","Tráfego",x]));
+  const w=B.windsor&&B.windsor.ai;if(w&&w.potencializar) w.potencializar.slice(0,2).forEach(x=>A.push(["🌐","Multicanal",`<b>${x.canal||""}:</b> ${x.acao||""}`]));
+  if(typeof MKT!=="undefined"&&MKT&&MKT.ai){(MKT.ai.oportunidades||[]).slice(0,1).forEach(x=>A.push(["🔭","Mercado",`<b>${x.titulo||""}</b> — ${x.texto||""}`]));
+    (MKT.ai.angulos||[]).slice(0,1).forEach(x=>A.push(["✍️","Ângulo",x]));}
+  if(!A.length){host.innerHTML=`<div class="empty">As ações recomendadas aparecem conforme as IAs do painel rodam (diagnóstico, anúncios, multicanal, mercado).</div>`;return;}
+  host.innerHTML=A.map(r=>`<div class="rec"><div class="ic">${r[0]}</div><div><h4 style="display:flex;gap:8px;align-items:center"><span class="tag">${r[1]}</span></h4><p style="margin-top:2px">${r[2]}</p></div></div>`).join("");
+}
 function renderRecs(){const recs=[],m=STATE.media,bt=groupBy(m,"type");
   const reels=bt.REELS||[],feed=(bt.FEED||[]).concat(bt.CAROUSEL_ALBUM||[]);
   if(reels.length&&feed.length){const ar=avg(reels,"reach"),af=avg(feed,"reach"),r=af?ar/af:0;
