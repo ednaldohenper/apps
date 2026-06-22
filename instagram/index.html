@@ -628,16 +628,15 @@ const WLAB={spend:"Investimento",impressions:"Impressões",reach:"Alcance",click
   accounts_reached:"Contas alcançadas",accounts_engaged:"Contas engajadas"};
 const WMONEY=new Set(["spend","cpm","cpc","conversion_values"]);
 const WPCT=new Set(["ctr"]);
-const WAVG=new Set(["ctr","cpm","cpc","frequency"]); // métricas que são médias, não somas
 const WORDER=["spend","results","conversions","reach","impressions","clicks","ctr","cpm","cpc","frequency",
   "total_interactions","total_engagements","engagement","video_views","plays","likes","comments","shares","saves",
   "followers","profile_visits","profile_views","accounts_reached","accounts_engaged"];
 function wlabel(s){return WSRC[s]||s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());}
-function wval(k,v,dias){
-  let n=v; if(WAVG.has(k)&&dias>0) n=v/dias; // médias: divide pelo nº de dias para não somar taxas
-  if(WMONEY.has(k)) return money(n);
-  if(WPCT.has(k)) return pct(n);
-  return fmt(Math.round(n));
+function wval(k,v){
+  if(WMONEY.has(k)) return money(v);
+  if(WPCT.has(k)) return pct(v);
+  if(k==="frequency") return (Math.round(v*100)/100).toString();
+  return fmt(Math.round(v));
 }
 function renderMulti(){
   const host=$("#multiBody");if(!host)return;const W=B.windsor;
@@ -648,7 +647,7 @@ function renderMulti(){
   let h=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">`;
   for(const s of srcs){
     const keys=WORDER.filter(k=>s.totais[k]!=null).concat(Object.keys(s.totais).filter(k=>!WORDER.includes(k)));
-    const rows=keys.slice(0,8).map(k=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)"><span style="color:var(--mut);font-size:13px">${WLAB[k]||k}</span><span style="font-weight:600;font-size:14px">${wval(k,s.totais[k],s.dias)}</span></div>`).join("");
+    const rows=keys.slice(0,8).map(k=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)"><span style="color:var(--mut);font-size:13px">${WLAB[k]||k}</span><span style="font-weight:600;font-size:14px">${wval(k,s.totais[k])}</span></div>`).join("");
     h+=`<div class="card"><div class="sectitle" style="margin-top:0">${WICON[s.source]||"🌐"} ${wlabel(s.source)} <span class="tag">${s.dias}d</span></div>${rows||'<div class="empty">Sem métricas.</div>'}</div>`;
   }
   h+=`</div>`;

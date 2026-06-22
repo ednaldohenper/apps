@@ -194,20 +194,35 @@ async function windsorFetch(key,fields,from,to,preset){
   }
 }
 const WINDSOR_SKIP=new Set(["source","date","account_name","campaign","account_id","campaign_id","ad_id","ad_name","adset_name"]);
+const WINDSOR_LAST=new Set(["followers"]); // métricas acumuladas: usar o último dia, não somar
+const r2=n=>Math.round(n*100)/100;
+function validSource(s){ return typeof s==="string" && /^[a-z0-9_]{1,40}$/i.test(s); } // descarta source=URL/lixo
 function windsorAgg(rows){
   // descobre campos numéricos e agrega por fonte (totais + série diária)
   const NUM=new Set();
-  rows.forEach(r=>Object.entries(r).forEach(([k,v])=>{ if(!WINDSOR_SKIP.has(k) && v!=="" && v!=null && !isNaN(+v)) NUM.add(k); }));
+  rows.forEach(r=>{ if(!validSource(r.source)) return;
+    Object.entries(r).forEach(([k,v])=>{ if(!WINDSOR_SKIP.has(k) && v!=="" && v!=null && !isNaN(+v)) NUM.add(k); }); });
   const bySource={};
   for(const r of rows){
-    const s=r.source||"?"; const o=bySource[s]||(bySource[s]={source:s,dias:new Set(),totais:{},serie:{}});
+    if(!validSource(r.source)) continue;
+    const s=r.source; const o=bySource[s]||(bySource[s]={source:s,dias:new Set(),totais:{},_last:{},serie:{}});
     if(r.date) o.dias.add(r.date);
-    for(const k of NUM){ const v=+r[k]; if(!isNaN(v)&&r[k]!==""&&r[k]!=null){ o.totais[k]=(o.totais[k]||0)+v;
-      if(r.date){ (o.serie[r.date]=o.serie[r.date]||{})[k]=(o.serie[r.date][k]||0)+v; } } }
+    for(const k of NUM){ const raw=r[k]; if(raw===""||raw==null||isNaN(+raw)) continue; const v=+raw;
+      if(WINDSOR_LAST.has(k)){ const d=r.date||""; if(!o._last[k]||d>=o._last[k].d) o._last[k]={d,v}; }
+      else o.totais[k]=(o.totais[k]||0)+v;
+      if(r.date){ const cell=(o.serie[r.date]=o.serie[r.date]||{}); cell[k]=WINDSOR_LAST.has(k)?v:((cell[k]||0)+v); } }
   }
-  return Object.values(bySource).map(o=>({source:o.source,dias:o.dias.size,
-    totais:Object.fromEntries(Object.entries(o.totais).map(([k,v])=>[k,Math.round(v*100)/100])),
-    serie:Object.entries(o.serie).sort((a,b)=>a[0]<b[0]?-1:1).map(([date,m])=>({date,...m}))}));
+  return Object.values(bySource).map(o=>{
+    const t=o.totais; for(const k in o._last) t[k]=o._last[k].v; // injeta os "último valor"
+    // taxas derivadas dos totais (exatas), em vez de somar/averaging
+    if(t.impressions>0 && t.clicks!=null) t.ctr=r2(t.clicks/t.impressions*100); else delete t.ctr;
+    if(t.impressions>0 && t.spend>0) t.cpm=r2(t.spend/t.impressions*1000); else delete t.cpm;
+    if(t.clicks>0 && t.spend>0) t.cpc=r2(t.spend/t.clicks); else delete t.cpc;
+    if(t.reach>0 && t.impressions>0) t.frequency=r2(t.impressions/t.reach); else delete t.frequency;
+    return {source:o.source,dias:o.dias.size,
+      totais:Object.fromEntries(Object.entries(t).map(([k,v])=>[k,r2(v)])),
+      serie:Object.entries(o.serie).sort((a,b)=>a[0]<b[0]?-1:1).map(([date,m])=>({date,...m}))};
+  });
 }
 async function buildWindsor(){
   const key=(process.env.WINDSOR_API_KEY||"").trim();
