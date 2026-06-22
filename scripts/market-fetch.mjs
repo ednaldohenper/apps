@@ -205,38 +205,34 @@ async function aiMarket(radar,competitors,prev){
     concorrentes:{instagram:competitors.instagram,tiktok:competitors.tiktok,youtube:competitors.youtube},
     posts_que_performaram:destaques };
   const system=`${contexto}\n\nVocê é o motor de ESTUDO DE MERCADO do Ednaldo (cientista do comportamento + estrategista; NUNCA "coach"). Português do Brasil, no tom dele. Sua tarefa é olhar PARA FORA — o que está se movendo no mercado e nos concorrentes — e traduzir em leitura estratégica pela lente do método (GNC, Maman, regras de copy, a vitrine vende o destino). Não repita dados crus: interprete. Baseie cada afirmação no que veio do radar/concorrentes.`;
-  const instr=`Analise o radar de mercado (buscas web), os concorrentes (perfis raspados) e os posts que mais performaram. Devolva SOMENTE um JSON válido neste formato:
-{"resumo":"3-5 frases: o que está acontecendo no mercado agora e o que isso significa pro Ednaldo","tendencias":[{"titulo":"...","texto":"tendência de mercado/comportamento e por que importa"}],"oportunidades":[{"titulo":"...","texto":"brecha que ele pode ocupar, com base no que o mercado/concorrentes fazem ou deixam de fazer"}],"ameacas":[{"titulo":"...","texto":"movimento de concorrente ou do mercado que merece atenção"}],"concorrentes_leitura":"1-2 parágrafos: o que funciona pra quem, cadência, temas e ângulos que repetem — e onde estão os vazios","angulos":["ângulo/gancho de conteúdo específico pra surfar a tendência, no estilo Maman","..."],"posts_destaque":[{"id":0,"porque":"2-3 frases: por que ESTE post provavelmente performou — gancho, formato, emoção, timing, dor que tocou (use a lente comportamental)","licao":"1 frase: o que o Ednaldo pode aplicar disso no conteúdo dele"}]}
-Regras: 3 a 5 itens em tendências/oportunidades; 2 a 4 em ameaças; 4 a 6 em ângulos; em posts_destaque, analise CADA item de "posts_que_performaram" pelo seu id (não invente posts); cite nomes de concorrentes e números reais quando houver; se concorrentes vier vazio, foque no radar e diga que faltam perfis cadastrados.
-IMPORTANTE (formato): devolva JSON 100% válido, envolto entre as tags <json> e </json>, e NÃO escreva nada fora dessas tags. NÃO use aspas duplas (") dentro dos textos — use aspas simples (') quando precisar citar. Não quebre linha dentro dos valores.
+  const instr=`Analise o radar de mercado (buscas web), os concorrentes (perfis raspados) e os posts que mais performaram, e registre o resultado chamando a ferramenta responder.
+Regras: 3 a 5 itens em tendencias/oportunidades; 2 a 4 em ameacas; 4 a 6 em angulos (ganchos de conteudo no estilo Maman); em posts_destaque, analise CADA item de posts_que_performaram pelo seu id (nao invente posts); cite nomes de concorrentes e numeros reais quando houver; se concorrentes vier vazio, foque no radar e diga que faltam perfis cadastrados.
 DADOS:
 ${JSON.stringify(dossie).slice(0,120000)}`;
-  const parseLoose=s=>{
-    try{ return JSON.parse(s); }catch{}
-    // reparo: troca caracteres de controle por espaco e remove virgulas finais
-    const fixed=s.replace(/[\u0000-\u001F]/g," ").replace(/,\s*([}\]])/g,"$1");
-    return JSON.parse(fixed);
-  };
-  const extractJSON=text=>{
-    const tag=text.match(/<json>([\s\S]*?)<\/json>/i); if(tag) return tag[1].trim();
-    const st=text.indexOf("{"); if(st<0) return text;
-    let d=0,inStr=false,esc=false; // primeiro objeto {...} balanceado (ignora texto depois)
-    for(let i=st;i<text.length;i++){ const ch=text[i];
-      if(inStr){ if(esc)esc=false; else if(ch==="\\")esc=true; else if(ch===String.fromCharCode(34))inStr=false; }
-      else if(ch===String.fromCharCode(34))inStr=true; else if(ch==="{")d++; else if(ch==="}"){ if(--d===0) return text.slice(st,i+1); } }
-    return text.slice(st);
-  };
+  const item={type:"object",properties:{titulo:{type:"string"},texto:{type:"string"}},required:["titulo","texto"]};
+  const schema={type:"object",properties:{
+    resumo:{type:"string"},
+    tendencias:{type:"array",items:item},
+    oportunidades:{type:"array",items:item},
+    ameacas:{type:"array",items:item},
+    concorrentes_leitura:{type:"string"},
+    angulos:{type:"array",items:{type:"string"}},
+    posts_destaque:{type:"array",items:{type:"object",properties:{id:{type:"integer"},porque:{type:"string"},licao:{type:"string"}},required:["id","porque","licao"]}}
+  },required:["resumo","tendencias","oportunidades","ameacas","concorrentes_leitura","angulos","posts_destaque"]};
   try{
     const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
       headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
-      body:JSON.stringify({model,max_tokens:12000,system,messages:[{role:"user",content:instr}],stop_sequences:[]})});
+      body:JSON.stringify({model,max_tokens:12000,system,
+        tools:[{name:"responder",description:"Registra o estudo de mercado estruturado.",input_schema:schema}],
+        tool_choice:{type:"tool",name:"responder"},
+        messages:[{role:"user",content:instr}]})});
     const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
-    if(j.stop_reason==="max_tokens") console.warn("Aviso: resposta da IA atingiu max_tokens (pode truncar).");
-    const text=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
-    const parsed=parseLoose(extractJSON(text));
-    console.log(`Síntese de mercado gerada (${model}).`);
-    return {generated:new Date().toISOString(),model,...parsed};
-  }catch(e){ console.error("Falha na síntese de mercado (mantendo anterior):",e.message); return prev||null; }
+    const tu=(j.content||[]).find(b=>b.type==="tool_use");
+    if(!tu||!tu.input) throw new Error("resposta sem tool_use");
+    if(j.stop_reason==="max_tokens") console.warn("Aviso: resposta da IA atingiu max_tokens.");
+    console.log(`Sintese de mercado gerada (${model}).`);
+    return {generated:new Date().toISOString(),model,...tu.input};
+  }catch(e){ console.error("Falha na sintese de mercado (mantendo anterior):",e.message); return prev||null; }
 }
 
 /* ---------- Doc para o vault ---------- */
