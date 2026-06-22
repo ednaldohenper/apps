@@ -144,29 +144,35 @@ async function adsTop(token,acct,days,limit=12){
     return rows.slice(0,limit);
   }catch(e){ console.error(`ads top ${days}d: ${e.message}`); return []; }
 }
-async function adsDiagnose(token,acct){
-  // Quando os anúncios falham, descobre QUEM é o token e QUAIS contas ele enxerga.
-  try{
-    const me=await api(token,`me?fields=id,name`);
-    console.log(`Ads diag — token é de: ${me?.name||"?"} (id ${me?.id||"?"}).`);
-  }catch(e){ console.log(`Ads diag — me: ${e.message}`); }
+async function adsVisible(token){
+  // Lista as contas de anúncio que o token enxerga (com nome/status).
   try{
     const j=await api(token,`me/adaccounts?fields=id,account_id,name,account_status&limit=100`);
-    const list=(j?.data||[]).map(a=>`${a.id} (${a.name||"sem nome"}, status ${a.account_status})`);
-    console.log(list.length?`Ads diag — contas visíveis (${list.length}): ${list.join(" | ")}`:`Ads diag — token não enxerga NENHUMA conta de anúncio (provável: faltou ads_read na geração ou o usuário do token não está atribuído a nenhuma conta).`);
-    const want=acct.replace(/^act_/,"");
-    const hit=(j?.data||[]).some(a=>a.account_id===want||a.id===acct);
-    console.log(hit?`Ads diag — a conta alvo ${acct} ESTÁ na lista (acesso ok; se ainda falha, é gasto zero no período ou app sem ads_read).`:`Ads diag — a conta alvo ${acct} NÃO está na lista: o token não tem acesso a ela. Corrija AD_ACCOUNT_ID ou atribua o usuário do token a essa conta.`);
-  }catch(e){ console.log(`Ads diag — adaccounts: ${e.message}`); }
+    return j?.data||[];
+  }catch(e){ console.log(`Ads — não consegui listar contas: ${e.message}`); return []; }
+}
+async function adsResolveAccount(token){
+  // Decide qual conta usar:
+  // 1) se AD_ACCOUNT_ID aponta para uma conta que o token acessa, usa essa (override do dono);
+  // 2) senão, escolhe automaticamente a conta com MAIOR gasto nos últimos 90 dias.
+  const want=adsAcct();
+  const visible=await adsVisible(token);
+  if(!visible.length){ console.log("Ads — token não enxerga nenhuma conta (verifique ads_read e atribuição do usuário)."); return null; }
+  console.log(`Ads — contas visíveis (${visible.length}): ${visible.map(a=>`${a.id} (${a.name||"?"}, status ${a.account_status})`).join(" | ")}`);
+  if(want && visible.some(a=>a.id===want)){ console.log(`Ads — usando conta fixada em AD_ACCOUNT_ID: ${want}.`); return want; }
+  if(want){ console.log(`Ads — AD_ACCOUNT_ID (${want}) não está entre as contas acessíveis; escolhendo automaticamente pela de maior gasto.`); }
+  let best=null,bestSpend=-1;
+  for(const a of visible){ const p=await adsPeriod(token,a.id,90); const s=p?.spend||0; if(s>bestSpend){ bestSpend=s; best=a.id; } }
+  if(best && bestSpend>0){ console.log(`Ads — conta auto-selecionada: ${best} (maior gasto 90d: ${bestSpend}).`); return best; }
+  console.log("Ads — nenhuma conta com gasto nos últimos 90 dias."); return best||visible[0].id;
 }
 async function buildAds(token){
-  const acct=adsAcct(); if(!acct){ console.log("Sem AD_ACCOUNT_ID — anúncios pulados."); return null; }
   const t=(process.env.ADS_TOKEN||"").trim()||token;
+  const acct=await adsResolveAccount(t); if(!acct){ console.log("Anúncios pulados (sem conta acessível)."); return null; }
   const periods={}; for(const d of [7,28,90]) periods[d]=await adsPeriod(t,acct,d);
   const topAds=await adsTop(t,acct,28,12);
   const ok=Object.values(periods).some(Boolean)||topAds.length;
-  if(ok){ console.log(`Anúncios coletados (${acct}).`); }
-  else { console.log(`Anúncios: nada retornado — ${acct}. Rodando autodiagnóstico…`); await adsDiagnose(t,acct); }
+  console.log(ok?`Anúncios coletados (${acct}).`:`Anúncios: conta ${acct} sem dados no período.`);
   return {account:acct, updated:new Date().toISOString(), periods, topAds};
 }
 /* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
