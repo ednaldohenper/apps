@@ -782,11 +782,28 @@ async function dispatchMarket(){
     else{const t=await r.text().catch(()=>"");st.textContent=`Erro ${r.status}: ${t.slice(0,160)||"verifique o token/permissão"}`;}
   }catch(e){ st.textContent="Falha de rede: "+e.message; }
 }
+function surfCard(){
+  return `<div class="card" style="border-color:var(--acc)"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">`+
+    `<div style="flex:1;min-width:200px"><div class="sectitle" style="margin:0">🔥 Radar de Surf</div><p style="font-size:12px;color:var(--mut);margin:4px 0 0">Assuntos quentes das últimas 72h pra surfar em Reels (newsjack). Gera no vault: <code>Instagram/Radar de Surf (auto)</code>.</p></div>`+
+    `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button onclick="dispatchSurf()" style="background:var(--acc);color:#fff;border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:14px">🔥 Rodar Radar</button><span id="surfStatus" style="font-size:13px;color:var(--mut)"></span></div></div></div>`;
+}
+async function dispatchSurf(){
+  const pat=(localStorage.getItem("mkt_gh_pat")||"").trim();const st=$("#surfStatus");
+  if(!pat){st.innerHTML="⚠️ Cole o token do GitHub na aba <b>Concorrentes</b> primeiro (fica salvo).";return;}
+  st.textContent="Disparando…";
+  try{
+    const r=await fetch("https://api.github.com/repos/ednaldohenper/apps/actions/workflows/surf-radar.yml/dispatches",{
+      method:"POST",headers:{"Authorization":"Bearer "+pat,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},
+      body:JSON.stringify({ref:"main"})});
+    if(r.status===204) st.innerHTML="🚀 Disparado! ~2 min. Depois abra <b>Radar de Surf (auto)</b> no Obsidian — ou me fale 'saiu o radar'.";
+    else{const t=await r.text().catch(()=>"");st.textContent=`Erro ${r.status}: ${t.slice(0,140)||"verifique o token/permissão"}`;}
+  }catch(e){ st.textContent="Falha de rede: "+e.message; }
+}
 function renderMarket(){
   const host=$("#marketBody");if(!host)return;const M=MKT;
-  if(!M){host.innerHTML=`<div class="empty">A pesquisa de mercado aparece aqui depois de rodar o estudo. Vá na aba <b>Concorrentes</b>, preencha os perfis e clique <b>Analisar agora</b>.</div>`;return;}
+  if(!M){host.innerHTML=surfCard()+`<div class="empty">A pesquisa de mercado aparece aqui depois de rodar o estudo. Vá na aba <b>Concorrentes</b>, preencha os perfis e clique <b>Analisar agora</b>.</div>`;return;}
   const a=M.ai;const recs=(arr,ic)=>(arr||[]).map(r=>`<div class="rec"><div class="ic">${ic||"•"}</div><div><h4>${r.titulo||""}</h4><p>${r.texto||""}</p></div></div>`).join("");
-  let h="";
+  let h=surfCard();
   if(a){
     if(a.resumo) h+=`<div class="card" style="border-color:var(--acc)"><div class="sectitle" style="margin-top:0">🧭 Leitura do mercado</div><p style="font-size:15px;line-height:1.6">${a.resumo}</p></div>`;
     if(a.tendencias&&a.tendencias.length) h+=`<div class="sectitle">📈 Tendências do mercado</div>${recs(a.tendencias,"📈")}`;
