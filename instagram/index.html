@@ -115,6 +115,7 @@
     <div class="tab" data-t="diag">Inteligência</div>
     <div class="tab" data-t="content">Conteúdo</div>
     <div class="tab" data-t="ads">Anúncios</div>
+    <div class="tab" data-t="multi">Multicanal</div>
     <div class="tab" data-t="audience">Audiência</div>
     <div class="tab" data-t="goals">Metas</div>
     <div class="tab" data-t="history">Histórico</div>
@@ -202,6 +203,10 @@
       <button class="pbtn" data-aw="90" onclick="adsWin(90)">90D</button>
     </div>
     <div id="adsBody"></div>
+  </section>
+  <section id="multi">
+    <div class="sectitle" style="margin-top:0">🌐 Visão multicanal <span class="tag">via Windsor.ai · ~28 dias</span></div>
+    <div id="multiBody"></div>
   </section>
   <section id="audience">
     <div class="twocol">
@@ -336,7 +341,7 @@ function renderSeries(){
     `<div class="card kpi"><div class="lbl">Interações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.inter)}</div><div class="sub">${note}</div></div>`;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderGrowth();renderAI();renderCompare();renderAds();renderAudience();renderGoals();renderHistory();applyPeriod();
+function renderAll(){renderHeader();renderGrowth();renderAI();renderCompare();renderAds();renderMulti();renderAudience();renderGoals();renderHistory();applyPeriod();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -610,6 +615,47 @@ function renderAds(){
   host.innerHTML=h;
 }
 
+/* ===== Multicanal (Windsor.ai) ===== */
+const WSRC={facebook:"Meta Ads",facebook_ads:"Meta Ads",instagram_public:"Instagram orgânico",instagram:"Instagram orgânico",
+  facebook_organic:"Facebook orgânico",tiktok_organic:"TikTok orgânico",tiktok:"TikTok",tiktok_ads:"TikTok Ads",
+  youtube:"YouTube",google_ads:"Google Ads",googleanalytics4:"GA4",linkedin_organic:"LinkedIn orgânico",searchconsole:"Search Console"};
+const WICON={facebook:"💸",facebook_ads:"💸",instagram_public:"📸",instagram:"📸",facebook_organic:"👍",tiktok_organic:"🎵",tiktok:"🎵",tiktok_ads:"🎵",youtube:"▶️",google_ads:"🔍",googleanalytics4:"📊",linkedin_organic:"💼",searchconsole:"🔎"};
+const WLAB={spend:"Investimento",impressions:"Impressões",reach:"Alcance",clicks:"Cliques",ctr:"CTR",cpm:"CPM",cpc:"CPC",
+  frequency:"Frequência",conversions:"Conversões",conversion_values:"Valor conv.",results:"Resultados",
+  likes:"Curtidas",comments:"Comentários",shares:"Compart.",saves:"Salvos",video_views:"Views de vídeo",video_plays:"Plays",
+  plays:"Plays",total_engagements:"Engajamentos",total_interactions:"Interações",engagement:"Engajamento",
+  followers:"Seguidores",profile_visits:"Visitas ao perfil",profile_views:"Visitas ao perfil",
+  accounts_reached:"Contas alcançadas",accounts_engaged:"Contas engajadas"};
+const WMONEY=new Set(["spend","cpm","cpc","conversion_values"]);
+const WPCT=new Set(["ctr"]);
+const WAVG=new Set(["ctr","cpm","cpc","frequency"]); // métricas que são médias, não somas
+const WORDER=["spend","results","conversions","reach","impressions","clicks","ctr","cpm","cpc","frequency",
+  "total_interactions","total_engagements","engagement","video_views","plays","likes","comments","shares","saves",
+  "followers","profile_visits","profile_views","accounts_reached","accounts_engaged"];
+function wlabel(s){return WSRC[s]||s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());}
+function wval(k,v,dias){
+  let n=v; if(WAVG.has(k)&&dias>0) n=v/dias; // médias: divide pelo nº de dias para não somar taxas
+  if(WMONEY.has(k)) return money(n);
+  if(WPCT.has(k)) return pct(n);
+  return fmt(Math.round(n));
+}
+function renderMulti(){
+  const host=$("#multiBody");if(!host)return;const W=B.windsor;
+  if(!W){host.innerHTML=`<div class="empty">Para ligar a <b>visão multicanal</b>, cadastre o secret <b>WINDSOR_API_KEY</b> no repositório (sua chave de API do Windsor.ai) e rode o robô. Aí aparecem Meta Ads, Instagram, Facebook e TikTok lado a lado, com a tendência dos últimos ~28 dias.</div>`;return;}
+  if(!W.sources||!W.sources.length){host.innerHTML=`<div class="empty">Windsor conectado, mas nenhuma fonte retornou dados no período. Confira no Windsor.ai se os conectores (Meta Ads, Instagram, Facebook, TikTok) estão conectados e com dados nos últimos 28 dias.</div>`;return;}
+  const order=["facebook","facebook_ads","instagram_public","instagram","facebook_organic","tiktok_organic","tiktok"];
+  const srcs=W.sources.slice().sort((a,b)=>{const ia=order.indexOf(a.source),ib=order.indexOf(b.source);return (ia<0?99:ia)-(ib<0?99:ib);});
+  let h=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">`;
+  for(const s of srcs){
+    const keys=WORDER.filter(k=>s.totais[k]!=null).concat(Object.keys(s.totais).filter(k=>!WORDER.includes(k)));
+    const rows=keys.slice(0,8).map(k=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)"><span style="color:var(--mut);font-size:13px">${WLAB[k]||k}</span><span style="font-weight:600;font-size:14px">${wval(k,s.totais[k],s.dias)}</span></div>`).join("");
+    h+=`<div class="card"><div class="sectitle" style="margin-top:0">${WICON[s.source]||"🌐"} ${wlabel(s.source)} <span class="tag">${s.dias}d</span></div>${rows||'<div class="empty">Sem métricas.</div>'}</div>`;
+  }
+  h+=`</div>`;
+  h+=`<div class="foot">Fonte: Windsor.ai · janela ${W.from||""} → ${W.to||""} · ${W.rowCount||0} linhas · atualizado ${W.updated?new Date(W.updated).toLocaleString("pt-BR"):"—"}</div>`;
+  host.innerHTML=h;
+}
+
 /* ===== Comparar dois períodos ===== */
 let CMPW=28, CA={days:28,from:null,to:null}, CB={prev:true,from:null,to:null,days:28};
 function cmpSetA(d){CA={days:d,from:null,to:null};$("#caF").value="";$("#caT").value="";renderCompare();}
@@ -712,7 +758,7 @@ function renderDiag(){
 }
 
 /* tabs */
-const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",ads:"ads",audience:"audience",goals:"goals",history:"history"};
+const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",ads:"ads",multi:"multi",audience:"audience",goals:"goals",history:"history"};
 const PBAR_TABS=new Set(["overview","content"]); // barra de período global só vale nessas abas
 function syncPbar(tab){const pb=$("#periodBar");if(pb)pb.style.display=PBAR_TABS.has(tab)?"":"none";}
 $("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;

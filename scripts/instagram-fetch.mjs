@@ -175,6 +175,56 @@ async function buildAds(token){
   console.log(ok?`Anúncios coletados (${acct}).`:`Anúncios: conta ${acct} sem dados no período.`);
   return {account:acct, updated:new Date().toISOString(), periods, topAds};
 }
+/* ---------- Windsor.ai (multicanal: ads + orgânico, ~28 dias) ---------- */
+const WINDSOR_FIELDS_DEFAULT="source,date,account_name,campaign,clicks,impressions,spend,reach,ctr,cpm,cpc,frequency,conversions,conversion_values,results,likes,comments,shares,saves,video_views,video_plays,total_engagements,total_interactions,engagement,followers,profile_visits,profile_views,plays,accounts_reached,accounts_engaged";
+async function windsorFetch(key,fields,from,to,preset){
+  const base="https://connectors.windsor.ai/all";
+  const range=preset?`date_preset=${encodeURIComponent(preset)}`:`date_from=${from}&date_to=${to}`;
+  const url=`${base}?api_key=${encodeURIComponent(key)}&${range}&fields=${encodeURIComponent(fields)}&_renderer=json`;
+  for(let i=1;i<=3;i++){
+    try{
+      const r=await fetch(url); const j=await r.json();
+      if(j && j.error) throw new Error(typeof j.error==="string"?j.error:JSON.stringify(j.error));
+      return j?.data||[];
+    }catch(e){
+      const net=/fetch failed|ETIMEDOUT|ENETUNREACH|ECONNRESET|EAI_AGAIN|socket|network/i.test(String(e.message||e));
+      if(net && i<3){ await new Promise(r=>setTimeout(r,1000*i)); continue; }
+      throw e;
+    }
+  }
+}
+const WINDSOR_SKIP=new Set(["source","date","account_name","campaign","account_id","campaign_id","ad_id","ad_name","adset_name"]);
+function windsorAgg(rows){
+  // descobre campos numéricos e agrega por fonte (totais + série diária)
+  const NUM=new Set();
+  rows.forEach(r=>Object.entries(r).forEach(([k,v])=>{ if(!WINDSOR_SKIP.has(k) && v!=="" && v!=null && !isNaN(+v)) NUM.add(k); }));
+  const bySource={};
+  for(const r of rows){
+    const s=r.source||"?"; const o=bySource[s]||(bySource[s]={source:s,dias:new Set(),totais:{},serie:{}});
+    if(r.date) o.dias.add(r.date);
+    for(const k of NUM){ const v=+r[k]; if(!isNaN(v)&&r[k]!==""&&r[k]!=null){ o.totais[k]=(o.totais[k]||0)+v;
+      if(r.date){ (o.serie[r.date]=o.serie[r.date]||{})[k]=(o.serie[r.date][k]||0)+v; } } }
+  }
+  return Object.values(bySource).map(o=>({source:o.source,dias:o.dias.size,
+    totais:Object.fromEntries(Object.entries(o.totais).map(([k,v])=>[k,Math.round(v*100)/100])),
+    serie:Object.entries(o.serie).sort((a,b)=>a[0]<b[0]?-1:1).map(([date,m])=>({date,...m}))}));
+}
+async function buildWindsor(){
+  const key=(process.env.WINDSOR_API_KEY||"").trim();
+  if(!key){ console.log("Sem WINDSOR_API_KEY — multicanal (Windsor) pulado."); return null; }
+  const fields=process.env.WINDSOR_FIELDS||WINDSOR_FIELDS_DEFAULT;
+  const preset=process.env.WINDSOR_PRESET||""; // se vazio, usa intervalo de 28 dias
+  const _d=ms=>new Date(ms).toISOString().slice(0,10);
+  const to=_d(Date.now()), from=_d(Date.now()-27*864e5);
+  try{
+    const rows=await windsorFetch(key,fields,from,to,preset);
+    if(!rows.length){ console.log("Windsor: nenhuma linha retornada (confira conectores conectados e período no Windsor)."); return {updated:new Date().toISOString(),from,to,sources:[],rowCount:0}; }
+    const sources=windsorAgg(rows);
+    const campos=Object.keys(rows[0]||{});
+    console.log(`Windsor: ${rows.length} linha(s) · fontes: ${sources.map(s=>`${s.source}(${s.dias}d)`).join(", ")} · campos: ${campos.join(",")}`);
+    return {updated:new Date().toISOString(),from,to,fields:campos,sources,rowCount:rows.length};
+  }catch(e){ console.error("Falha no Windsor:",e.message); return null; }
+}
 /* ---------- Diagnóstico com IA (vault × Instagram) ---------- */
 function aiStats(media){
   const r=media.map(p=>p.reach).filter(x=>x>0).sort((a,b)=>a-b);
@@ -199,8 +249,11 @@ function buildDossier(b){
   const tendencia90={dias:serie.length,
     alcance_medio_diario:serie.length?Math.round(serie.reduce((s,x)=>s+(x.reach||0),0)/serie.length):0,
     views_total_90d:t90.views??null, interacoes_total_90d:t90.inter??null, alcance_diario:serie};
+  const multicanal=(b.windsor&&b.windsor.sources&&b.windsor.sources.length)
+    ? {janela:`${b.windsor.from} a ${b.windsor.to}`, por_plataforma:b.windsor.sources.map(s=>({plataforma:s.source,dias:s.dias,totais:s.totais}))}
+    : null;
   return {perfil:{nome:p.name,usuario:p.username,seguidores:p.followers_count,posts:p.media_count},
-    estatisticas:aiStats(b.media||[]),historico_diario:historico,tendencia_90d:tendencia90,posts};
+    estatisticas:aiStats(b.media||[]),historico_diario:historico,tendencia_90d:tendencia90,multicanal,posts};
 }
 function loadContext(){
   // Lê o método AO VIVO do vault (se montado em VAULT_DIR); senão usa o contexto.md commitado.
@@ -229,7 +282,7 @@ async function aiDiagnosis(bundle, prevAi){
   if(!key){ console.log("Sem ANTHROPIC_API_KEY — diagnóstico de IA pulado (resto do painel segue normal)."); return prevAi||null; }
   const model=process.env.AI_MODEL||"claude-opus-4-8";
   const contexto=loadContext();
-  const system=`${contexto}\n\nVocê é o motor de análise de um painel de Instagram do Ednaldo. Escreva em português do Brasil, no tom dele (cientista do comportamento + estrategista; NUNCA "coach"). Sua tarefa é interpretar TENDÊNCIAS ao longo do tempo e o comportamento da audiência — não repetir números que o painel já mostra. Use o método acima (GNC, Maman, regras de copy, vitrine vende o destino) como lente. Baseie cada afirmação nos dados.`;
+  const system=`${contexto}\n\nVocê é o motor de análise de um painel de Instagram do Ednaldo. Escreva em português do Brasil, no tom dele (cientista do comportamento + estrategista; NUNCA "coach"). Sua tarefa é interpretar TENDÊNCIAS ao longo do tempo e o comportamento da audiência — não repetir números que o painel já mostra. Use o método acima (GNC, Maman, regras de copy, vitrine vende o destino) como lente. Baseie cada afirmação nos dados. Se vier o bloco "multicanal" (dados do Windsor: Meta Ads, Instagram, Facebook e TikTok dos últimos ~28 dias), cruze as plataformas — onde o alcance/engajamento está migrando, o que uma puxa que a outra não puxa — e traga isso nas tendências.`;
   const instr=`Analise os dados (perfil, estatísticas, histórico diário e posts em ordem cronológica) e devolva SOMENTE um JSON válido, sem nada fora do JSON, neste formato:
 {"resumo":"2-4 frases: momento da conta e a tendência principal","tendencias":[{"titulo":"...","texto":"..."}],"o_que_funciona":[{"titulo":"...","texto":"..."}],"atencao":[{"titulo":"...","texto":"..."}],"pauta":["ideia de conteúdo específica p/ a próxima semana usando ganchos/gatilhos do Maman e temas que performam","..."],"leitura_comportamental":"1 parágrafo: o que salvamentos/compartilhamentos/temas revelam sobre a relação da audiência com o conteúdo"}
 Regras: 2 a 4 itens por lista; 3 a 5 ideias em "pauta"; cite números/temas reais; se o histórico diário tiver poucos dias, leia a tendência pela evolução dos posts ao longo das datas.
@@ -438,6 +491,7 @@ async function main(){
   const series=await buildSeries(token).catch(()=>[]);
   const totals=await buildTotals(token).catch(()=>({}));
   const ads=await buildAds(token).catch(e=>{console.error("Falha em anúncios:",e.message);return null;});
+  const windsor=await buildWindsor().catch(e=>{console.error("Falha no Windsor:",e.message);return null;});
   const demoData={ city:await demo(token,"city").catch(()=>[]),
                    gender:await demo(token,"gender").catch(()=>[]),
                    age:await demo(token,"age").catch(()=>[]) };
@@ -453,7 +507,7 @@ async function main(){
     reachDay:accMetric(accDay,"reach"), viewsDay:accMetric(accDay,"views"),
     profileViews:accMetric(accDay,"profile_views"), engaged:accMetric(accDay,"accounts_engaged")};
 
-  const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, ads, demo:demoData, history };
+  const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, ads, windsor, demo:demoData, history };
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
   bundle.compare=await aiCompare(bundle, prev.compare);
   if(bundle.ads){ bundle.ads.ai=await aiAds(bundle, prev.ads?.ai); }

@@ -42,6 +42,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           AD_ACCOUNT_ID: ${{ secrets.AD_ACCOUNT_ID }}
           ADS_TOKEN:     ${{ secrets.ADS_TOKEN }}
+          WINDSOR_API_KEY: ${{ secrets.WINDSOR_API_KEY }}
           VAULT_DIR:     vault
         run: node scripts/instagram-fetch.mjs
 
