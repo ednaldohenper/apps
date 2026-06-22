@@ -94,8 +94,11 @@ async function scrapeInstagram(handles,actor,limit){
   const urls=handles.map(h=>`https://www.instagram.com/${String(h).replace(/^@/,"")}/`);
   try{
     const items=await apifyRun(actor,{directUrls:urls,resultsType:"posts",resultsLimit:limit,addParentData:true});
+    const want=new Set(handles.map(h=>String(h).replace(/^@/,"").toLowerCase()));
     const byUser={};
-    for(const it of items){ const u=it.ownerUsername||it.username||"?"; (byUser[u]=byUser[u]||[]).push({
+    for(const it of items){ const u=it.ownerUsername||it.username||"?";
+      if(want.size && !want.has(String(u).toLowerCase())) continue; // ignora perfil-fantasma (parent data)
+      (byUser[u]=byUser[u]||[]).push({
       text:it.caption||"",likes:num(it.likesCount),comments:num(it.commentsCount),views:num(it.videoViewCount||it.videoPlayCount),
       ts:it.timestamp||it.takenAt||null,url:it.url||it.shortCode&&`https://instagram.com/p/${it.shortCode}`||null,
       followers:num(it.ownerFollowersCount||it.followersCount)});}
@@ -163,7 +166,7 @@ ${JSON.stringify(dossie).slice(0,90000)}`;
   try{
     const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
       headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
-      body:JSON.stringify({model,max_tokens:4096,system,messages:[{role:"user",content:instr}]})});
+      body:JSON.stringify({model,max_tokens:8000,system,messages:[{role:"user",content:instr}]})});
     const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
     const text=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
     const m=text.match(/\{[\s\S]*\}/); const parsed=JSON.parse(m?m[0]:text);
