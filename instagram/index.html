@@ -668,14 +668,15 @@ function marketForm(){
   const gh=localStorage.getItem("mkt_gh_pat")||"";
   let hv={};try{hv=JSON.parse(localStorage.getItem("mkt_handles")||"{}");}catch{}
   const inS="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13px;margin-top:3px";
-  const fld=(ic,id,val,ph)=>`<label style="font-size:12px;color:var(--mut)">${ic}<input id="${id}" value="${escA(val)}" placeholder="${ph}" style="${inS}"></label>`;
+  const taS=inS+";font-family:inherit;resize:vertical;min-height:54px";
+  const fld=(ic,id,val,ph)=>`<label style="font-size:12px;color:var(--mut)">${ic} <span style="opacity:.7">(um por linha ou vírgula)</span><textarea id="${id}" rows="3" placeholder="${ph}" style="${taS}">${escA(val)}</textarea></label>`;
   return `<div class="card" style="border-color:var(--acc)">
     <div class="sectitle" style="margin-top:0">▶️ Rodar análise agora <span class="tag">lista do momento</span></div>
-    <p style="font-size:12px;color:var(--mut);margin:0 0 10px">Digite os @ dos concorrentes que quer analisar agora (separados por vírgula). Vale só para esta rodada — não altera seu <code>market.json</code> salvo.</p>
+    <p style="font-size:12px;color:var(--mut);margin:0 0 10px">Liste os concorrentes que quer analisar agora — pode pôr <b>vários</b>, um por linha. Vale só para esta rodada — não altera seu <code>market.json</code> salvo.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-      ${fld("📸 Instagram","mIg",hv.ig,"ex: fulano.gestao, ciclano")}
-      ${fld("🎵 TikTok","mTk",hv.tk,"ex: fulano, ciclano")}
-      ${fld("▶️ YouTube","mYt",hv.yt,"ex: @canal ou URL")}
+      ${fld("📸 Instagram","mIg",hv.ig,"fulano.gestao\nciclano.negocios\nbeltrano")}
+      ${fld("🎵 TikTok","mTk",hv.tk,"fulano\nciclano")}
+      ${fld("▶️ YouTube","mYt",hv.yt,"@canal\nhttps://youtube.com/@outro")}
     </div>
     <label style="font-size:12px;color:var(--mut);display:block;margin-top:10px">🔑 Token do GitHub <span style="opacity:.7">(salvo só no seu navegador)</span>
       <input id="mPat" type="password" value="${escA(gh)}" placeholder="github_pat_… / ghp_…" style="${inS}"></label>
