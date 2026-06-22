@@ -239,51 +239,80 @@ ${JSON.stringify(dossie).slice(0,120000)}`;
 /* ---------- Doc para o vault ---------- */
 function writeVaultDoc(bundle){
   const dir=process.env.VAULT_DIR; if(!dir||!fs.existsSync(dir)) return;
-  const a=bundle.ai; if(!a) return;
-  const li=arr=>(arr||[]).map(x=>`- **${x.titulo||""}** — ${x.texto||""}`).join("\n");
-  const comp=k=>(bundle.competitors[k]||[]).map(c=>`- **@${c.handle}** (${c.posts} posts · ~${c.media_likes} likes · cadência ${c.cadencia_dias??"?"}d) — temas: ${(c.temas||[]).join(", ")||"—"}`).join("\n");
-  const dst=(bundle.competitors.destaques||[]).map(g=>`### @${g.handle} (${g.kind})\n`+
-    (g.posts||[]).map((d,i)=>`${i+1}. ❤ ${d.likes} · 💬 ${d.comments}${d.views?` · ▶ ${d.views}`:""}${d.engaj_pct!=null?` · 📊 ${d.engaj_pct}%`:""}\n   > ${(d.texto||"").replace(/\n/g," ").slice(0,180)}\n   - **Por que performou:** ${d.porque||"—"}\n   - **Lição:** ${d.licao||"—"}`).join("\n")).join("\n\n");
-  const md=`---
-tags: [instagram, mercado, concorrencia, auto]
-gerado: ${new Date().toISOString()}
----
+  const a=bundle.ai;
+  const nf=n=>(n==null?"—":Number(n).toLocaleString("pt-BR"));
+  const KIND={instagram:"Instagram",tiktok:"TikTok",youtube:"YouTube"};
+  const sec=(t,arr)=>arr&&arr.length?`\n## ${t}\n`+arr.map(x=>`- **${x.titulo||""}** — ${x.texto||""}`).join("\n"):"";
+  const L=[];
+  L.push(`---\ntags: [instagram, mercado, concorrencia, auto]\ngerado: ${new Date().toISOString()}\n---\n`);
+  L.push(`# Estudo de Mercado (auto)\n`);
+  L.push(`> Gerado automaticamente pelo robô de mercado (Tavily + Apify + IA). Não editar à mão — é sobrescrito a cada rodada.`);
+  const C=bundle.competitors||{};
+  const nIg=(C.instagram||[]).length, nTk=(C.tiktok||[]).length, nYt=(C.youtube||[]).length;
+  const groups=C.destaques||[];
+  const nPosts=groups.reduce((s,g)=>s+(g.posts?g.posts.length:0),0);
+  L.push(`> Atualizado em ${new Date().toLocaleString("pt-BR")} · ${nIg+nTk+nYt} concorrente(s) (${nIg} IG · ${nTk} TikTok · ${nYt} YT) · ${nPosts} posts analisados · ${(bundle.radar||[]).length} buscas de radar.`);
 
-# Estudo de Mercado (auto)
+  if(a){
+    if(a.resumo) L.push(`\n## Leitura do momento\n${a.resumo}`);
+    L.push(sec("Tendências",a.tendencias));
+    L.push(sec("Oportunidades (brechas)",a.oportunidades));
+    L.push(sec("Ameaças / movimentos",a.ameacas));
+    if(a.angulos&&a.angulos.length) L.push(`\n## Ângulos para surfar\n`+a.angulos.map(x=>`- ${x}`).join("\n"));
+    if(a.concorrentes_leitura) L.push(`\n## Leitura dos concorrentes\n${a.concorrentes_leitura}`);
+  } else {
+    L.push(`\n> ⚠️ A síntese de IA não rodou nesta coleta — abaixo seguem os dados crus coletados.`);
+  }
 
-> Gerado automaticamente pelo robô de mercado. Não editar à mão — será sobrescrito.
+  const statByHandle={};
+  for(const k of ["instagram","tiktok","youtube"]) for(const c of (C[k]||[])) statByHandle[(c.handle||"").toLowerCase()]={...c,kind:k};
+  if(groups.length){
+    L.push(`\n---\n# Concorrentes — análise detalhada`);
+    for(const g of groups){
+      const st=statByHandle[(g.handle||"").toLowerCase()]||{};
+      L.push(`\n## @${g.handle} · ${KIND[g.kind]||g.kind}`);
+      const bits=[];
+      const seg=st.seguidores!=null?st.seguidores:g.seguidores;
+      if(seg!=null) bits.push(`👥 ${nf(seg)} seguidores`);
+      if(st.posts!=null) bits.push(`📦 ${nf(st.posts)} posts coletados`);
+      if(st.media_likes!=null) bits.push(`média ❤ ${nf(st.media_likes)}`);
+      if(st.media_comentarios!=null) bits.push(`média 💬 ${nf(st.media_comentarios)}`);
+      if(st.media_views) bits.push(`média ▶ ${nf(st.media_views)}`);
+      if(st.cadencia_dias!=null) bits.push(`cadência ~${st.cadencia_dias} dia(s) entre posts`);
+      if(bits.length) L.push(bits.join(" · "));
+      if(st.temas&&st.temas.length) L.push(`**Temas recorrentes:** ${st.temas.join(", ")}`);
+      L.push(`\n**Top posts (até 5, por engajamento):**`);
+      (g.posts||[]).forEach((d,i)=>{
+        const met=[`❤ ${nf(d.likes)}`,`💬 ${nf(d.comments)}`]; if(d.views)met.push(`▶ ${nf(d.views)}`); if(d.engaj_pct!=null)met.push(`📊 ${d.engaj_pct}% eng.`);
+        const dt=d.ts?` · ${new Date(d.ts).toLocaleDateString("pt-BR")}`:"";
+        L.push(`\n**${i+1}.** ${met.join(" · ")}${dt}${d.url?` · [ver post](${d.url})`:""}`);
+        if(d.texto) L.push(`> ${String(d.texto).replace(/\n/g," ").slice(0,400)}`);
+        L.push(`- **Por que performou:** ${d.porque||"— (análise não gerada nesta rodada)"}`);
+        L.push(`- **Lição p/ aplicar:** ${d.licao||"—"}`);
+      });
+    }
+  }
 
-## Leitura do momento
-${a.resumo||""}
+  const R=bundle.radar||[];
+  if(R.length){
+    L.push(`\n---\n# Radar de mercado (buscas web — Tavily)`);
+    for(const r of R){
+      if(!r) continue;
+      L.push(`\n## ${r.q||""}`);
+      if(r.answer) L.push(r.answer);
+      if((r.results||[]).length) L.push(`\n**Fontes:**`);
+      (r.results||[]).forEach(x=>{
+        L.push(`- **[${String(x.title||x.url||"").replace(/\n/g," ")}](${x.url})**${x.published?` · ${x.published}`:""}`);
+        if(x.content) L.push(`  > ${String(x.content).replace(/\n/g," ").slice(0,500)}`);
+      });
+    }
+  }
 
-## Tendências
-${li(a.tendencias)}
-
-## Oportunidades
-${li(a.oportunidades)}
-
-## Ameaças
-${li(a.ameacas)}
-
-## Leitura dos concorrentes
-${a.concorrentes_leitura||""}
-
-### Instagram
-${comp("instagram")||"— sem perfis —"}
-### TikTok
-${comp("tiktok")||"— sem perfis —"}
-### YouTube
-${comp("youtube")||"— sem perfis —"}
-
-## Top posts por concorrente (até 5 · últimos 30 dias)
-${dst||"— sem posts —"}
-
-## Ângulos para surfar
-${(a.angulos||[]).map(x=>`- ${x}`).join("\n")}
-`;
+  L.push(`\n---\n*Estudo gerado por Tavily (radar de mercado) + Apify (concorrentes) + IA${a?` (${a.model})`:" (síntese não gerada)"}. Janela de concorrentes: últimos 30 dias.*`);
+  const md=L.join("\n")+"\n";
   try{ const p=path.join(dir,"Instagram"); fs.mkdirSync(p,{recursive:true});
     fs.writeFileSync(path.join(p,"Estudo de Mercado (auto).md"),md);
-    console.log("Estudo escrito no vault: Instagram/Estudo de Mercado (auto).md"); }catch(e){ console.error("Vault doc:",e.message); }
+    console.log(`Estudo escrito no vault: Instagram/Estudo de Mercado (auto).md (${md.length} chars).`); }catch(e){ console.error("Vault doc:",e.message); }
 }
 
 async function main(){
