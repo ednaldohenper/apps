@@ -206,7 +206,8 @@ async function aiMarket(radar,competitors,prev){
     posts_que_performaram:destaques };
   const system=`${contexto}\n\nVocê é o motor de ESTUDO DE MERCADO do Ednaldo (cientista do comportamento + estrategista; NUNCA "coach"). Português do Brasil, no tom dele. Sua tarefa é olhar PARA FORA — o que está se movendo no mercado e nos concorrentes — e traduzir em leitura estratégica pela lente do método (GNC, Maman, regras de copy, a vitrine vende o destino). Não repita dados crus: interprete. Baseie cada afirmação no que veio do radar/concorrentes.`;
   const instr=`Analise o radar de mercado (buscas web), os concorrentes (perfis raspados) e os posts que mais performaram, e registre o resultado chamando a ferramenta responder.
-Regras: 3 a 5 itens em tendencias/oportunidades; 2 a 4 em ameacas; 4 a 6 em angulos (ganchos de conteudo no estilo Maman); em posts_destaque, analise CADA item de posts_que_performaram pelo seu id (nao invente posts); cite nomes de concorrentes e numeros reais quando houver; se concorrentes vier vazio, foque no radar e diga que faltam perfis cadastrados.
+Regras: 3 a 5 itens em tendencias/oportunidades; 2 a 4 em ameacas; 4 a 6 em angulos (ganchos de conteudo no estilo Maman); cite nomes de concorrentes e numeros reais quando houver; se concorrentes vier vazio, foque no radar e diga que faltam perfis cadastrados.
+OBRIGATORIO: posts_destaque DEVE conter EXATAMENTE um objeto para CADA id presente em posts_que_performaram (do menor ao maior, sem pular nenhum). Se houver N posts, devolva N objetos em posts_destaque.
 DADOS:
 ${JSON.stringify(dossie).slice(0,120000)}`;
   const item={type:"object",properties:{titulo:{type:"string"},texto:{type:"string"}},required:["titulo","texto"]};

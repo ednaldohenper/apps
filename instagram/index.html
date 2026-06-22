@@ -713,35 +713,17 @@ async function dispatchMarket(){
 }
 function renderMarket(){
   const host=$("#marketBody");if(!host)return;const M=MKT;
-  if(!M){host.innerHTML=marketForm()+`<div class="empty">Ainda não há estudo publicado. Preencha os concorrentes acima e clique <b>Analisar agora</b> — ou rode o workflow <b>Market Study</b> na aba Actions. Precisa dos secrets <b>TAVILY_API_KEY</b> e <b>APIFY_TOKEN</b>.</div>`;return;}
+  if(!M){host.innerHTML=`<div class="empty">A pesquisa de mercado aparece aqui depois de rodar o estudo. Vá na aba <b>Concorrentes</b>, preencha os perfis e clique <b>Analisar agora</b>.</div>`;return;}
   const a=M.ai;const recs=(arr,ic)=>(arr||[]).map(r=>`<div class="rec"><div class="ic">${ic||"•"}</div><div><h4>${r.titulo||""}</h4><p>${r.texto||""}</p></div></div>`).join("");
-  let h=marketForm();
+  let h="";
   if(a){
     if(a.resumo) h+=`<div class="card" style="border-color:var(--acc)"><div class="sectitle" style="margin-top:0">🧭 Leitura do mercado</div><p style="font-size:15px;line-height:1.6">${a.resumo}</p></div>`;
     if(a.tendencias&&a.tendencias.length) h+=`<div class="sectitle">📈 Tendências do mercado</div>${recs(a.tendencias,"📈")}`;
     if(a.oportunidades&&a.oportunidades.length) h+=`<div class="sectitle">🚀 Oportunidades (brechas)</div>${recs(a.oportunidades,"🚀")}`;
     if(a.ameacas&&a.ameacas.length) h+=`<div class="sectitle">⚠️ Ameaças / movimentos</div>${recs(a.ameacas,"⚠️")}`;
-    if(a.concorrentes_leitura) h+=`<div class="card"><div class="sectitle" style="margin-top:0">🎯 Leitura dos concorrentes</div><p style="font-size:14px;line-height:1.6;color:var(--mut)">${a.concorrentes_leitura}</p></div>`;
     if(a.angulos&&a.angulos.length) h+=`<div class="card"><div class="sectitle" style="margin-top:0">✍️ Ângulos para surfar</div><ul style="margin:0;padding-left:20px;line-height:1.9;font-size:14px">${a.angulos.map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
   } else {
-    h+=`<div class="empty">Dados coletados, mas a síntese de IA não rodou (confira o <b>ANTHROPIC_API_KEY</b>). Veja os dados crus abaixo.</div>`;
-  }
-  // Concorrentes
-  const C=M.competitors||{};
-  for(const k of ["instagram","tiktok","youtube"]){
-    const list=C[k]||[];if(!list.length)continue;
-    h+=`<div class="sectitle">${MKIND[k]} <span class="tag">${list.length} perfil(s)</span></div>`;
-    h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">`;
-    for(const c of list){
-      const tt=(c.top_posts||[]).map(p=>`<div style="font-size:12px;color:var(--mut);padding:4px 0;border-top:1px solid var(--line)">“${(p.texto||"").replace(/</g,"&lt;")||"—"}” <span style="white-space:nowrap">· ❤ ${fmt(p.likes)}${p.views?" · ▶ "+fmt(p.views):""}</span></div>`).join("");
-      h+=`<div class="card"><div class="sectitle" style="margin-top:0">@${c.handle}</div>`+
-        `<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-bottom:6px">`+
-        `<span>📦 ${fmt(c.posts)} posts</span><span>❤ ${fmt(c.media_likes)}</span><span>💬 ${fmt(c.media_comentarios)}</span>`+
-        (c.media_views?`<span>▶ ${fmt(c.media_views)}</span>`:"")+(c.cadencia_dias!=null?`<span>🗓 ${c.cadencia_dias}d</span>`:"")+(c.seguidores?`<span>👥 ${fmt(c.seguidores)}</span>`:"")+`</div>`+
-        (c.temas&&c.temas.length?`<div style="font-size:12px;color:var(--mut);margin-bottom:4px">temas: ${c.temas.join(", ")}</div>`:"")+
-        tt+`</div>`;
-    }
-    h+=`</div>`;
+    h+=`<div class="empty">Radar coletado, mas a síntese de IA não rodou (confira o <b>ANTHROPIC_API_KEY</b>). Veja as fontes abaixo.</div>`;
   }
   // Radar (fontes)
   const R=M.radar||[];
@@ -754,7 +736,7 @@ function renderMarket(){
         `<div style="font-size:12px">${(r.results||[]).slice(0,4).map(x=>`<a href="${x.url}" target="_blank" rel="noopener" style="color:var(--acc);display:block;padding:2px 0">↗ ${(x.title||x.url||"").slice(0,90)}</a>`).join("")}</div></div>`;
     }
   }
-  h+=`<div class="foot">Estudo de mercado · atualizado ${M.updated?new Date(M.updated).toLocaleString("pt-BR"):"—"}${a?" · síntese "+(a.model||""):""}</div>`;
+  h+=`<div class="foot">Pesquisa de mercado · atualizado ${M.updated?new Date(M.updated).toLocaleString("pt-BR"):"—"}${a?" · síntese "+(a.model||""):""}</div>`;
   host.innerHTML=h;
 }
 
@@ -765,9 +747,12 @@ function renderConc(){
   // compat: se vier o formato antigo (lista plana), agrupa por handle
   let G=D;
   if(D.length && !D[0].posts){ const by={}; D.forEach(d=>{(by[d.handle]=by[d.handle]||{handle:d.handle,kind:d.kind,posts:[]}).posts.push(d);}); G=Object.values(by); }
-  if(!G.length){host.innerHTML=`<div class="empty">Os <b>top posts de cada concorrente</b> aparecem aqui depois de rodar o estudo com perfis cadastrados. Vá na aba <b>Mercado</b>, liste concorrentes e clique <b>Analisar agora</b>.</div>`;return;}
+  const a=MKT&&MKT.ai;
+  let head=marketForm();
+  if(a&&a.concorrentes_leitura) head+=`<div class="card"><div class="sectitle" style="margin-top:0">🎯 Leitura dos concorrentes</div><p style="font-size:14px;line-height:1.6;color:var(--mut)">${a.concorrentes_leitura}</p></div>`;
+  if(!G.length){host.innerHTML=head+`<div class="empty">Preencha os perfis acima e clique <b>Analisar agora</b> — os top posts de cada concorrente aparecem aqui (com a análise de cada um).</div>`;return;}
   const total=G.reduce((s,g)=>s+(g.posts?g.posts.length:0),0);
-  let h=`<p style="color:var(--mut);font-size:13px;margin:0 0 14px">Os posts de maior engajamento de cada concorrente (até 5 por perfil, preferindo os últimos 30 dias). Cada um traz a capa, o <b>porquê performou</b> e a <b>lição</b> pra aplicar no seu conteúdo.</p>`;
+  let h=head+`<div class="sectitle">🏆 Top posts por concorrente</div><p style="color:var(--mut);font-size:13px;margin:0 0 14px">Os posts de maior engajamento de cada concorrente (até 5 por perfil, preferindo os últimos 30 dias). Cada um traz a capa, o <b>porquê performou</b> e a <b>lição</b> pra aplicar no seu conteúdo.</p>`;
   const postCard=(d)=>{
     const m=[`❤ ${fmt(d.likes)}`,`💬 ${fmt(d.comments)}`];
     if(d.views)m.push(`▶ ${fmt(d.views)}`); if(d.engaj_pct!=null)m.push(`📊 ${d.engaj_pct}%`);
@@ -785,6 +770,7 @@ function renderConc(){
       </div>
       ${d.porque?`<div style="margin-top:6px"><span style="color:var(--acc);font-weight:600;font-size:13px">Por que performou</span><p style="margin:3px 0 0;font-size:14px;line-height:1.5">${d.porque}</p></div>`:""}
       ${d.licao?`<div style="margin-top:7px;background:var(--soft,rgba(125,125,125,.08));border-radius:8px;padding:7px 10px"><span style="font-weight:600;font-size:13px">💡 Lição:</span> <span style="font-size:14px">${d.licao}</span></div>`:""}
+      ${(!d.porque&&!d.licao)?`<div style="margin-top:6px;font-size:12px;color:var(--mut);font-style:italic">⏳ Análise da IA não gerada para este post — rode de novo para incluir.</div>`:""}
     </div>`;
   };
   G.forEach(g=>{
