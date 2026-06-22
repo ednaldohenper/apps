@@ -4,6 +4,19 @@ name: Market Study
 # porque Apify/Tavily são pagos por uso e tendência de mercado muda devagar.
 on:
   workflow_dispatch:
+    inputs:
+      comp_ig:
+        description: "Instagram (@ separados por vírgula) — opcional, sobrepõe o market.json só nesta rodada"
+        required: false
+        default: ""
+      comp_tiktok:
+        description: "TikTok (@ separados por vírgula) — opcional"
+        required: false
+        default: ""
+      comp_youtube:
+        description: "YouTube (@ ou URLs separados por vírgula) — opcional"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -34,6 +47,9 @@ jobs:
           APIFY_TOKEN:       ${{ secrets.APIFY_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VAULT_DIR:         vault
+          COMP_IG:           ${{ inputs.comp_ig }}
+          COMP_TIKTOK:       ${{ inputs.comp_tiktok }}
+          COMP_YOUTUBE:      ${{ inputs.comp_youtube }}
         run: node scripts/market-fetch.mjs
 
       - name: Salvar no repositório

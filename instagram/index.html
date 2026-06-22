@@ -663,11 +663,49 @@ function renderMulti(){
 
 /* ===== Estudo de Mercado (Tavily + Apify) ===== */
 const MKIND={instagram:"📸 Instagram",tiktok:"🎵 TikTok",youtube:"▶️ YouTube"};
+const escA=s=>String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+function marketForm(){
+  const gh=localStorage.getItem("mkt_gh_pat")||"";
+  let hv={};try{hv=JSON.parse(localStorage.getItem("mkt_handles")||"{}");}catch{}
+  const inS="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13px;margin-top:3px";
+  const fld=(ic,id,val,ph)=>`<label style="font-size:12px;color:var(--mut)">${ic}<input id="${id}" value="${escA(val)}" placeholder="${ph}" style="${inS}"></label>`;
+  return `<div class="card" style="border-color:var(--acc)">
+    <div class="sectitle" style="margin-top:0">▶️ Rodar análise agora <span class="tag">lista do momento</span></div>
+    <p style="font-size:12px;color:var(--mut);margin:0 0 10px">Digite os @ dos concorrentes que quer analisar agora (separados por vírgula). Vale só para esta rodada — não altera seu <code>market.json</code> salvo.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+      ${fld("📸 Instagram","mIg",hv.ig,"ex: fulano.gestao, ciclano")}
+      ${fld("🎵 TikTok","mTk",hv.tk,"ex: fulano, ciclano")}
+      ${fld("▶️ YouTube","mYt",hv.yt,"ex: @canal ou URL")}
+    </div>
+    <label style="font-size:12px;color:var(--mut);display:block;margin-top:10px">🔑 Token do GitHub <span style="opacity:.7">(salvo só no seu navegador)</span>
+      <input id="mPat" type="password" value="${escA(gh)}" placeholder="github_pat_… / ghp_…" style="${inS}"></label>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <button onclick="dispatchMarket()" style="background:var(--acc);color:#fff;border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:14px">▶ Analisar agora</button>
+      <span id="mStatus" style="font-size:13px;color:var(--mut)"></span>
+    </div>
+    <p style="font-size:11px;color:var(--mut);margin:10px 0 0">Token: <b>github.com/settings/tokens</b> → Fine-grained → repo <b>apps</b> → permissão <b>Actions: Read and write</b>. Precisa dos secrets <b>TAVILY_API_KEY</b> e <b>APIFY_TOKEN</b> no repo.</p>
+  </div>`;
+}
+async function dispatchMarket(){
+  const pat=($("#mPat").value||"").trim(), ig=($("#mIg").value||"").trim(), tk=($("#mTk").value||"").trim(), yt=($("#mYt").value||"").trim();
+  const st=$("#mStatus");
+  localStorage.setItem("mkt_gh_pat",pat); localStorage.setItem("mkt_handles",JSON.stringify({ig,tk,yt}));
+  if(!pat){st.textContent="⚠️ Cole o token do GitHub.";return;}
+  if(!ig&&!tk&&!yt){st.textContent="⚠️ Informe ao menos um concorrente.";return;}
+  st.textContent="Disparando…";
+  try{
+    const r=await fetch("https://api.github.com/repos/ednaldohenper/apps/actions/workflows/market-study.yml/dispatches",{
+      method:"POST",headers:{"Authorization":"Bearer "+pat,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},
+      body:JSON.stringify({ref:"main",inputs:{comp_ig:ig,comp_tiktok:tk,comp_youtube:yt}})});
+    if(r.status===204){st.innerHTML="🚀 Disparado! O robô leva ~3–5 min. Quando terminar, clique no 🔒 e entre de novo pra ver o resultado.";}
+    else{const t=await r.text().catch(()=>"");st.textContent=`Erro ${r.status}: ${t.slice(0,160)||"verifique o token/permissão"}`;}
+  }catch(e){ st.textContent="Falha de rede: "+e.message; }
+}
 function renderMarket(){
   const host=$("#marketBody");if(!host)return;const M=MKT;
-  if(!M){host.innerHTML=`<div class="empty">O <b>estudo de mercado</b> aparece depois de cadastrar os secrets <b>TAVILY_API_KEY</b> e <b>APIFY_TOKEN</b>, listar concorrentes em <code>instagram/market.json</code> e rodar o workflow <b>Market Study</b> (aba Actions). Ele lê tendências do mercado e o que os concorrentes estão fazendo — pela lente do seu método.</div>`;return;}
+  if(!M){host.innerHTML=marketForm()+`<div class="empty">Ainda não há estudo publicado. Preencha os concorrentes acima e clique <b>Analisar agora</b> — ou rode o workflow <b>Market Study</b> na aba Actions. Precisa dos secrets <b>TAVILY_API_KEY</b> e <b>APIFY_TOKEN</b>.</div>`;return;}
   const a=M.ai;const recs=(arr,ic)=>(arr||[]).map(r=>`<div class="rec"><div class="ic">${ic||"•"}</div><div><h4>${r.titulo||""}</h4><p>${r.texto||""}</p></div></div>`).join("");
-  let h="";
+  let h=marketForm();
   if(a){
     if(a.resumo) h+=`<div class="card" style="border-color:var(--acc)"><div class="sectitle" style="margin-top:0">🧭 Leitura do mercado</div><p style="font-size:15px;line-height:1.6">${a.resumo}</p></div>`;
     if(a.tendencias&&a.tendencias.length) h+=`<div class="sectitle">📈 Tendências do mercado</div>${recs(a.tendencias,"📈")}`;

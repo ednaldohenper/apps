@@ -22,9 +22,20 @@ const CONF = path.join(DIR, "market.json");
 const OUT  = path.join(DIR, "market.enc");
 const PASS = process.env.DASH_PASSWORD;
 
+const splitList=s=>(s||"").split(/[,\n;]/).map(x=>x.trim().replace(/^@/,"")).filter(Boolean);
 function readConf(){
-  try{ return JSON.parse(fs.readFileSync(CONF,"utf8")); }
-  catch(e){ console.error("Sem market.json válido:",e.message); return {}; }
+  let conf={};
+  try{ conf=JSON.parse(fs.readFileSync(CONF,"utf8")); }
+  catch(e){ console.error("Sem market.json válido:",e.message); }
+  // Lista "do momento" (vinda do painel via workflow_dispatch) sobrepõe a do arquivo
+  const ig=splitList(process.env.COMP_IG), tk=splitList(process.env.COMP_TIKTOK), yt=splitList(process.env.COMP_YOUTUBE);
+  if(ig.length||tk.length||yt.length){
+    if(ig.length) conf.competitors_instagram=ig;
+    if(tk.length) conf.competitors_tiktok=tk;
+    if(yt.length) conf.competitors_youtube=yt;
+    console.log(`Lista do momento (painel): IG ${ig.length} · TikTok ${tk.length} · YouTube ${yt.length}.`);
+  }
+  return conf;
 }
 const STOP=new Set("para com uma dos das que como mais mas sem sobre quando onde qual quais isso este esta esse essa voce seus suas meu minha tem ser nao sim nas nos pra pro por ele ela eles elas the and for you your with this that have from".split(/\s+/));
 function topThemes(texts,n=8){
