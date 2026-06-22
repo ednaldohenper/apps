@@ -76,6 +76,20 @@ async function apifyRun(actor,input,timeoutS=180){
   return Array.isArray(j)?j:(j.items||[]);
 }
 const num=v=>{const n=+v;return isNaN(n)?0:n;};
+// baixa a capa e devolve data URI (embutido, não expira). Pula se falhar ou for grande demais.
+async function fetchImageDataUri(url,maxKB=320){
+  if(!url||typeof url!=="string"||!/^https?:\/\//.test(url)) return null;
+  try{
+    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),12000);
+    const r=await fetch(url,{signal:ctrl.signal,headers:{"user-agent":"Mozilla/5.0"}}); clearTimeout(to);
+    if(!r.ok) return null;
+    const ct=(r.headers.get("content-type")||"image/jpeg").split(";")[0];
+    if(!/^image\//.test(ct)) return null;
+    const buf=Buffer.from(await r.arrayBuffer());
+    if(buf.length>maxKB*1024 || buf.length<200) return null;
+    return `data:${ct};base64,${buf.toString("base64")}`;
+  }catch{ return null; }
+}
 function summarize(handle,posts,kind){
   if(!posts.length) return {handle,kind,posts:0};
   const likes=posts.map(p=>p.likes), comments=posts.map(p=>p.comments), views=posts.map(p=>p.views).filter(x=>x>0);
@@ -88,7 +102,7 @@ function summarize(handle,posts,kind){
   return {handle,kind,posts:posts.length,seguidores:posts[0].followers||null,
     media_likes:avg(likes),media_comentarios:avg(comments),media_views:views.length?avg(views):null,
     cadencia_dias:cadenceDays,temas:topThemes(posts.map(p=>p.text)),top_posts:top,
-    _posts:posts.map(p=>({texto:(p.text||"").slice(0,260),likes:p.likes,comments:p.comments,views:p.views||null,ts:p.ts,url:p.url,followers:posts[0].followers||null}))};
+    _posts:posts.map(p=>({texto:(p.text||"").slice(0,260),likes:p.likes,comments:p.comments,views:p.views||null,ts:p.ts,url:p.url,img:p.img||null,followers:posts[0].followers||null}))};
 }
 async function scrapeInstagram(handles,actor,limit){
   if(!handles.length) return [];
@@ -102,6 +116,7 @@ async function scrapeInstagram(handles,actor,limit){
       (byUser[u]=byUser[u]||[]).push({
       text:it.caption||"",likes:num(it.likesCount),comments:num(it.commentsCount),views:num(it.videoViewCount||it.videoPlayCount),
       ts:it.timestamp||it.takenAt||null,url:it.url||it.shortCode&&`https://instagram.com/p/${it.shortCode}`||null,
+      img:it.displayUrl||(Array.isArray(it.images)&&it.images[0])||it.thumbnailUrl||null,
       followers:num(it.ownerFollowersCount||it.followersCount)});}
     return Object.entries(byUser).map(([u,ps])=>summarize(u,ps,"instagram"));
   }catch(e){ console.error(`Apify Instagram: ${e.message}`); return []; }
@@ -114,6 +129,7 @@ async function scrapeTiktok(handles,actor,limit){
     for(const it of items){ const u=it.authorMeta?.name||it.authorMeta?.nickName||it.input||"?"; (byUser[u]=byUser[u]||[]).push({
       text:it.text||"",likes:num(it.diggCount),comments:num(it.commentCount),views:num(it.playCount),
       ts:it.createTimeISO||(it.createTime?new Date(it.createTime*1000).toISOString():null),url:it.webVideoUrl||null,
+      img:it.videoMeta?.coverUrl||it.videoMeta?.originalCoverUrl||(Array.isArray(it.covers)&&it.covers[0])||it.cover||null,
       followers:num(it.authorMeta?.fans)});}
     return Object.entries(byUser).map(([u,ps])=>summarize(u,ps,"tiktok"));
   }catch(e){ console.error(`Apify TikTok: ${e.message}`); return []; }
@@ -126,7 +142,9 @@ async function scrapeYoutube(handles,actor,limit){
     const byCh={};
     for(const it of items){ const u=it.channelName||it.channelUsername||"?"; (byCh[u]=byCh[u]||[]).push({
       text:it.title||"",likes:num(it.likes),comments:num(it.commentsCount),views:num(it.viewCount),
-      ts:it.date||it.uploadDate||null,url:it.url||null,followers:num(it.numberOfSubscribers)});}
+      ts:it.date||it.uploadDate||null,url:it.url||null,
+      img:it.thumbnailUrl||it.thumbnail||null,
+      followers:num(it.numberOfSubscribers)});}
     return Object.entries(byCh).map(([u,ps])=>summarize(u,ps,"youtube"));
   }catch(e){ console.error(`Apify YouTube: ${e.message}`); return []; }
 }
@@ -138,19 +156,26 @@ async function buildCompetitors(conf){
               youtube:await scrapeYoutube(conf.competitors_youtube||[],a.youtube||"streamers~youtube-scraper",lim) };
   const tot=out.instagram.length+out.tiktok.length+out.youtube.length;
   console.log(`Concorrentes (Apify): ${out.instagram.length} IG · ${out.tiktok.length} TikTok · ${out.youtube.length} YT (${tot} perfis).`);
-  // Ranking global dos posts que mais performaram nos últimos 30 dias
+  // Melhor post de CADA concorrente (preferindo os últimos 30 dias)
   const cutoff=Date.now()-30*864e5;
   const score=p=>(p.views||0)*0.05 + p.likes + p.comments*4;
-  const all=[];
+  const bests=[];
   for(const k of ["instagram","tiktok","youtube"]) for(const c of out[k]){
-    for(const p of (c._posts||[])){ const t=p.ts?Date.parse(p.ts):NaN;
-      if(!isNaN(t) && t<cutoff) continue; // só últimos 30 dias (quando há data)
-      const er=p.followers?(p.likes+p.comments)/p.followers*100:null;
-      all.push({handle:c.handle,kind:k,texto:p.texto,likes:p.likes,comments:p.comments,views:p.views,ts:p.ts,url:p.url,seguidores:p.followers||null,engaj_pct:er!=null?Math.round(er*100)/100:null}); }
-    delete c._posts;
+    const posts=c._posts||[]; delete c._posts;
+    if(!posts.length) continue;
+    const within=posts.filter(p=>{const t=p.ts?Date.parse(p.ts):NaN; return isNaN(t)||t>=cutoff;});
+    const pool=within.length?within:posts; // se nada nos 30d, usa o melhor histórico
+    const b=pool.slice().sort((x,y)=>score(y)-score(x))[0];
+    const er=b.followers?(b.likes+b.comments)/b.followers*100:null;
+    bests.push({handle:c.handle,kind:k,texto:b.texto,likes:b.likes,comments:b.comments,views:b.views,ts:b.ts,
+      url:b.url,img:b.img||null,recente:within.length>0,seguidores:b.followers||null,
+      engaj_pct:er!=null?Math.round(er*100)/100:null});
   }
-  out.destaques=all.sort((a,b)=>score(b)-score(a)).slice(0,12).map((p,i)=>({id:i,...p}));
-  console.log(`Destaques: ${out.destaques.length} post(s) no ranking de 30 dias.`);
+  bests.sort((a,b)=>score(b)-score(a));
+  for(const b of bests){ b.thumb=await fetchImageDataUri(b.img); } // embute a capa
+  out.destaques=bests.map((p,i)=>({id:i,...p}));
+  const comThumb=bests.filter(b=>b.thumb).length;
+  console.log(`Destaques: melhor post de ${out.destaques.length} concorrente(s) · ${comThumb} com capa embutida.`);
   return out;
 }
 

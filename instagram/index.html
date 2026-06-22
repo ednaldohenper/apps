@@ -215,7 +215,7 @@
     <div id="marketBody"></div>
   </section>
   <section id="concorrentes">
-    <div class="sectitle" style="margin-top:0">🏆 Concorrentes — posts que mais performaram <span class="tag">últimos 30 dias + análise IA</span></div>
+    <div class="sectitle" style="margin-top:0">🏆 Concorrentes — melhor post de cada um <span class="tag">últimos 30 dias + análise IA</span></div>
     <div id="concBody"></div>
   </section>
   <section id="audience">
@@ -758,24 +758,31 @@ function renderMarket(){
 function renderConc(){
   const host=$("#concBody");if(!host)return;
   const D=(MKT&&MKT.competitors&&MKT.competitors.destaques)||[];
-  if(!D.length){host.innerHTML=`<div class="empty">Os <b>posts que mais performaram</b> dos concorrentes aparecem aqui depois de rodar o estudo com perfis cadastrados. Vá na aba <b>Mercado</b>, liste concorrentes e clique <b>Analisar agora</b>.</div>`;return;}
-  let h=`<p style="color:var(--mut);font-size:13px;margin:0 0 14px">Ranking dos posts de maior engajamento entre todos os concorrentes (até 30 dias). Cada um traz a leitura do <b>porquê performou</b> e a <b>lição</b> pra aplicar no seu conteúdo.</p>`;
+  if(!D.length){host.innerHTML=`<div class="empty">O <b>melhor post de cada concorrente</b> aparece aqui depois de rodar o estudo com perfis cadastrados. Vá na aba <b>Mercado</b>, liste concorrentes e clique <b>Analisar agora</b>.</div>`;return;}
+  let h=`<p style="color:var(--mut);font-size:13px;margin:0 0 14px">O post de maior engajamento de cada concorrente (preferindo os últimos 30 dias). Cada um traz a capa, a leitura do <b>porquê performou</b> e a <b>lição</b> pra aplicar no seu conteúdo.</p>`;
   D.forEach((d,i)=>{
     const m=[`❤ ${fmt(d.likes)}`,`💬 ${fmt(d.comments)}`];
     if(d.views)m.push(`▶ ${fmt(d.views)}`); if(d.engaj_pct!=null)m.push(`📊 ${d.engaj_pct}%`);
     const dt=d.ts?new Date(d.ts).toLocaleDateString("pt-BR"):"";
+    const src=d.thumb||d.img||"";
+    const thumb=src?`<img src="${src}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'" style="width:96px;height:96px;object-fit:cover;border-radius:10px;flex:0 0 auto;background:var(--line)">`:"";
     h+=`<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
-        <div style="font-weight:700;font-size:15px">#${i+1} · @${d.handle} <span class="tag">${MKIND[d.kind]||d.kind}</span></div>
-        <div style="font-size:13px;color:var(--mut)">${m.join(" · ")}${dt?" · "+dt:""}</div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        ${thumb}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+            <div style="font-weight:700;font-size:15px">#${i+1} · @${d.handle} <span class="tag">${MKIND[d.kind]||d.kind}</span>${d.recente===false?` <span class="tag" style="opacity:.6">+30d</span>`:""}</div>
+            <div style="font-size:13px;color:var(--mut)">${m.join(" · ")}${dt?" · "+dt:""}</div>
+          </div>
+          <div style="font-size:13px;color:var(--mut);margin:8px 0;border-left:2px solid var(--line);padding-left:10px">“${(d.texto||"").replace(/</g,"&lt;")||"—"}”</div>
+        </div>
       </div>
-      <div style="font-size:13px;color:var(--mut);margin:8px 0;border-left:2px solid var(--line);padding-left:10px">“${(d.texto||"").replace(/</g,"&lt;")||"—"}”</div>
       ${d.porque?`<div style="margin-top:6px"><span style="color:var(--acc);font-weight:600;font-size:13px">Por que performou</span><p style="margin:3px 0 0;font-size:14px;line-height:1.55">${d.porque}</p></div>`:""}
       ${d.licao?`<div style="margin-top:8px;background:var(--soft,rgba(125,125,125,.08));border-radius:8px;padding:8px 10px"><span style="font-weight:600;font-size:13px">💡 Lição:</span> <span style="font-size:14px">${d.licao}</span></div>`:""}
       ${d.url?`<a href="${d.url}" target="_blank" rel="noopener" style="color:var(--acc);font-size:12px;display:inline-block;margin-top:8px">↗ ver post</a>`:""}
     </div>`;
   });
-  h+=`<div class="foot">Posts de concorrentes · ${D.length} no ranking · atualizado ${MKT.updated?new Date(MKT.updated).toLocaleString("pt-BR"):"—"}</div>`;
+  h+=`<div class="foot">Melhor post por concorrente · ${D.length} perfil(s) · atualizado ${MKT.updated?new Date(MKT.updated).toLocaleString("pt-BR"):"—"}</div>`;
   host.innerHTML=h;
 }
 
