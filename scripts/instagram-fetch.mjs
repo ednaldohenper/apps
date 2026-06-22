@@ -286,6 +286,43 @@ ${JSON.stringify(dossie)}`;
     return {generated:new Date().toISOString(),model,...parsed};
   }catch(e){ console.error("Falha na comparação de IA (mantendo a anterior):",e.message); return prev||null; }
 }
+function adsDossier(ads){
+  // Normaliza por dia p/ a IA comparar janelas (7⊂28⊂90 são acumuladas).
+  const win=(p,dias)=>{ if(!p) return {sem_dados:true};
+    const perDia=v=>+( (v||0)/dias ).toFixed(2);
+    const results={}; Object.entries(p.actions||{}).forEach(([k,v])=>results[k]=v);
+    const custo={}; Object.entries(p.cpa||{}).forEach(([k,v])=>custo[k]=v);
+    return {investimento:Math.round(p.spend),investimento_por_dia:perDia(p.spend),
+      alcance:p.reach,impressoes:p.impressions,frequencia:+p.frequency?.toFixed?.(2)||p.frequency,
+      cliques:p.clicks,ctr_pct:p.ctr,cpm:p.cpm,resultados:results,custo_por_resultado:custo};
+  };
+  const top=(ads.topAds||[]).slice(0,8).map(a=>({nome:a.name,investimento:Math.round(a.spend),
+    alcance:a.reach,ctr_pct:a.ctr,cpm:a.cpm,resultados:a.actions}));
+  return {conta:ads.account, janela_7d:win(ads.periods?.[7],7), janela_28d:win(ads.periods?.[28],28),
+    janela_90d:win(ads.periods?.[90],90), top_criativos_28d:top};
+}
+async function aiAds(bundle, prev){
+  const key=process.env.ANTHROPIC_API_KEY; if(!key){ console.log("Sem ANTHROPIC_API_KEY — inteligência de anúncios pulada."); return prev||null; }
+  const ads=bundle.ads; if(!ads || !ads.periods || !Object.values(ads.periods).some(Boolean)){ return prev||null; }
+  const model=process.env.AI_MODEL||"claude-opus-4-8";
+  const contexto=loadContext();
+  const system=`${contexto}\n\nVocê é o motor de análise de TRÁFEGO PAGO do painel do Ednaldo (cientista do comportamento + estrategista; NUNCA "coach"). Português do Brasil, tom dele. As janelas 7/28/90 dias são ACUMULADAS (a de 7 está contida na de 28, que está na de 90), então leia MOMENTUM comparando as taxas: se o CTR/CPM/custo-por-resultado dos últimos 7 dias está melhor ou pior que o dos 90, as mexidas recentes (criativo, orçamento, público) estão ajudando ou atrapalhando. A vitrine vende o destino, não o método. Baseie cada afirmação nos números.`;
+  const instr=`Responda, pela lente do método: os anúncios estão indo bem? As mexidas em criativos/orçamento se justificam? Há oportunidade clara? Devolva SOMENTE um JSON válido neste formato:
+{"resumo":"2-4 frases: os anúncios estão indo bem e o investimento se paga?","veredito":"uma das opções: 'rendendo' | 'no limite' | 'sangrando' + meia frase","tendencias":[{"titulo":"...","texto":"compare 7 vs 28 vs 90: o que melhorou/piorou e o que isso diz sobre as mexidas recentes"}],"oportunidades":[{"titulo":"...","texto":"onde colocar mais verba ou o que testar, com base no que já performa"}],"atencao":[{"titulo":"...","texto":"o que está caro/saturado (frequência alta, CTR caindo, custo subindo)"}],"acoes":["ação específica: escalar X, cortar Y, testar Z"],"criativos":"1 parágrafo: o que os top criativos revelam — o que escalar e o que aposentar"}
+Regras: 2 a 4 itens por lista; 2 a 4 ações; cite números reais (R$, CTR%, CPM, custo por resultado, frequência); se faltar dado de resultado/conversão, diga com honestidade em vez de inventar.
+DADOS:
+${JSON.stringify(adsDossier(ads))}`;
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model,max_tokens:3000,system,messages:[{role:"user",content:instr}]})});
+    const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+    const text=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
+    const mm=text.match(/\{[\s\S]*\}/); const parsed=JSON.parse(mm?mm[0]:text);
+    console.log("Inteligência de anúncios gerada.");
+    return {generated:new Date().toISOString(),model,...parsed};
+  }catch(e){ console.error("Falha na inteligência de anúncios (mantendo a anterior):",e.message); return prev||null; }
+}
 /* ---------- Documento de inteligência para o vault ---------- */
 function vaultDoc(b){
   const p=b.profile, media=(b.media||[]).filter(x=>x.type!=="AD");
@@ -419,6 +456,7 @@ async function main(){
   const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, ads, demo:demoData, history };
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
   bundle.compare=await aiCompare(bundle, prev.compare);
+  if(bundle.ads){ bundle.ads.ai=await aiAds(bundle, prev.ads?.ai); }
   writeVaultDoc(bundle);
   fs.mkdirSync(DIR,{recursive:true});
   fs.writeFileSync(DATA, encrypt(bundle,PASS));

@@ -563,6 +563,27 @@ const ADS_ACT={link_click:"Cliques no link",landing_page_view:"Visitas à págin
 function adsLabel(t){return ADS_ACT[t]||t.replace(/^onsite_conversion\.|^offsite_conversion\./,"").replace(/_/g," ");}
 function money(n){return n==null?"—":"R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
 function adsWin(w){adsW=w;renderAds();}
+function adsVerdictColor(v){const s=(v||"").toLowerCase();
+  if(s.startsWith("rend")) return "#2ecc71";
+  if(s.startsWith("no limite")||s.includes("limite")) return "#e6a23c";
+  if(s.startsWith("sang")) return "#e05a5a";
+  return "var(--acc)";}
+function adsAIBlock(a){
+  if(!a) return `<div class="empty" style="margin-bottom:16px">A <b>leitura de inteligência</b> dos anúncios aparece aqui depois do próximo run (precisa do <b>ANTHROPIC_API_KEY</b>). Ela diz se o investimento está rendendo, se as mexidas em criativo/orçamento se justificam e onde há oportunidade.</div>`;
+  const recs=arr=>(arr||[]).map(r=>`<div class="rec"><div class="ic">•</div><div><h4>${r.titulo||""}</h4><p>${r.texto||""}</p></div></div>`).join("");
+  const col=adsVerdictColor(a.veredito);
+  let h=`<div class="card" style="border-color:${col};margin-bottom:8px"><div class="sectitle" style="margin-top:0">🧠 Os anúncios estão indo bem?`+
+    (a.veredito?` <span class="tag" style="background:${col};color:#0a0a0a;font-weight:700">${a.veredito.split("—")[0].split("+")[0].trim()}</span>`:"")+`</div>`+
+    (a.resumo?`<p style="font-size:15px;line-height:1.6">${a.resumo}</p>`:"")+
+    (a.veredito&&a.veredito.match(/[—+]/)?`<p style="font-size:13px;color:var(--mut);margin:4px 0 0">${a.veredito.replace(/^[^—+]*[—+]\s*/,"")}</p>`:"")+`</div>`;
+  if(a.tendencias&&a.tendencias.length) h+=`<div class="sectitle">📊 O que mudou (7 vs 28 vs 90)</div>${recs(a.tendencias)}`;
+  if(a.oportunidades&&a.oportunidades.length) h+=`<div class="sectitle">🚀 Oportunidades</div>${recs(a.oportunidades)}`;
+  if(a.atencao&&a.atencao.length) h+=`<div class="sectitle">⚠️ Atenção (custo/saturação)</div>${recs(a.atencao)}`;
+  if(a.acoes&&a.acoes.length) h+=`<div class="card"><div class="sectitle" style="margin-top:0">🎯 Próximas ações</div><ul style="margin:0;padding-left:20px;line-height:1.9;font-size:14px">${a.acoes.map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+  if(a.criativos) h+=`<div class="card"><div class="sectitle" style="margin-top:0">🎬 Leitura dos criativos</div><p style="font-size:14px;line-height:1.6;color:var(--mut)">${a.criativos}</p></div>`;
+  h+=`<div class="foot" style="margin-bottom:18px">Inteligência de anúncios gerada por IA em ${a.generated?new Date(a.generated).toLocaleString("pt-BR"):"—"}${a.model?" · "+a.model:""}</div>`;
+  return `<div style="margin-bottom:8px">${h}</div>`;
+}
 function renderAds(){
   const host=$("#adsBody");if(!host)return;const A=B.ads;
   document.querySelectorAll("#adsBar [data-aw]").forEach(b=>b.classList.toggle("active",+b.dataset.aw===adsW));
@@ -571,7 +592,8 @@ function renderAds(){
   if(!p){host.innerHTML=`<div class="empty">Conta de anúncios conectada (<b>${A.account||""}</b>), mas sem dados neste período — confirme que o token tem <b>ads_read</b> e que houve investimento em ${adsW} dias.</div>`;return;}
   const kpis=[["Investimento",money(p.spend)],["Alcance",fmt(p.reach)],["Impressões",fmt(p.impressions)],
    ["Frequência",p.frequency?p.frequency.toFixed(2):"—"],["Cliques",fmt(p.clicks)],["CTR",p.ctr?pct(p.ctr):"—"],["CPM",money(p.cpm)]];
-  let h=`<div class="grid kpis">${kpis.map(x=>`<div class="card kpi"><div class="lbl">${x[0]} · ${adsW}D</div><div class="val">${x[1]}</div></div>`).join("")}</div>`;
+  let h=adsAIBlock(A.ai);
+  h+=`<div class="grid kpis">${kpis.map(x=>`<div class="card kpi"><div class="lbl">${x[0]} · ${adsW}D</div><div class="val">${x[1]}</div></div>`).join("")}</div>`;
   const acts=Object.entries(p.actions||{}).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   if(acts.length){
     h+=`<div class="sectitle">🎯 Resultados <span class="tag">por tipo de ação</span></div>`;
@@ -691,9 +713,12 @@ function renderDiag(){
 
 /* tabs */
 const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",ads:"ads",audience:"audience",goals:"goals",history:"history"};
+const PBAR_TABS=new Set(["overview","content"]); // barra de período global só vale nessas abas
+function syncPbar(tab){const pb=$("#periodBar");if(pb)pb.style.display=PBAR_TABS.has(tab)?"":"none";}
 $("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");
-  document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));$("#"+SEC[t.dataset.t]).classList.add("active");});
+  document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));$("#"+SEC[t.dataset.t]).classList.add("active");
+  syncPbar(t.dataset.t);});
 $("#postsTable").addEventListener("click",e=>{const th=e.target.closest("th[data-s]");if(th)renderPosts(th.dataset.s);});
 
 /* boot: tenta senha guardada na sessão */
