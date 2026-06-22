@@ -1,0 +1,45 @@
+name: Radar de Surf
+
+# Newsjack: assuntos quentes das últimas 72h pra surfar em Reels. Dispara MANUALMENTE
+# (aba Actions) sempre que quiser um radar fresco. Escreve só no vault.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  surf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Trazer o vault
+        uses: actions/checkout@v4
+        with:
+          repository: ednaldohenper/obsidian-vault
+          token: ${{ secrets.VAULT_TOKEN }}
+          path: vault
+
+      - name: Gerar radar de surf
+        env:
+          TAVILY_API_KEY:    ${{ secrets.TAVILY_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          APIFY_TOKEN:       ${{ secrets.APIFY_TOKEN }}
+          SURF_TRENDS_ACTOR: ${{ vars.SURF_TRENDS_ACTOR }}
+          VAULT_DIR:         vault
+        run: node scripts/surf-radar.mjs
+
+      - name: Salvar no vault
+        working-directory: vault
+        run: |
+          git config user.name  "instagram-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          git commit -m "radar de surf: $(date -u +%Y-%m-%d)" || echo "Sem mudanças"
+          git pull --rebase origin main
+          git push
