@@ -96,7 +96,10 @@
     <h2>🔒 Central de Inteligência</h2>
     <p class="muted" style="margin:8px 0 18px">Digite a senha do painel para abrir os dados (atualizados automaticamente todo dia).</p>
     <label class="fl">Senha</label>
-    <input id="pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')open_()">
+    <div style="position:relative">
+      <input id="pass" type="password" placeholder="••••••••" style="width:100%;box-sizing:border-box;padding-right:42px" onkeydown="if(event.key==='Enter')open_()">
+      <button type="button" id="peye" onclick="togglePass()" aria-label="Mostrar senha" title="Mostrar/ocultar senha" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;font-size:18px;padding:4px;line-height:1;opacity:.7">👁️</button>
+    </div>
     <div style="margin-top:16px"><button class="btn primary" onclick="open_()">Entrar</button></div>
     <p id="gErr" class="muted" style="color:var(--bad);margin-top:12px;display:none"></p>
   </div>
@@ -273,6 +276,7 @@ async function decrypt(b64,pass){
   return JSON.parse(new TextDecoder().decode(pt));
 }
 
+function togglePass(){const i=$("#pass"),b=$("#peye");const show=i.type==="password";i.type=show?"text":"password";b.textContent=show?"🙈":"👁️";b.setAttribute("aria-label",show?"Ocultar senha":"Mostrar senha");i.focus();}
 async function open_(){
   const pass=$("#pass").value;if(!pass){return;}
   $("#gErr").style.display="none";
