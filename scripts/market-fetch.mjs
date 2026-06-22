@@ -87,7 +87,8 @@ function summarize(handle,posts,kind){
     .map(p=>({texto:(p.text||"").slice(0,160),likes:p.likes,comentarios:p.comments,views:p.views||null,url:p.url}));
   return {handle,kind,posts:posts.length,seguidores:posts[0].followers||null,
     media_likes:avg(likes),media_comentarios:avg(comments),media_views:views.length?avg(views):null,
-    cadencia_dias:cadenceDays,temas:topThemes(posts.map(p=>p.text)),top_posts:top};
+    cadencia_dias:cadenceDays,temas:topThemes(posts.map(p=>p.text)),top_posts:top,
+    _posts:posts.map(p=>({texto:(p.text||"").slice(0,260),likes:p.likes,comments:p.comments,views:p.views||null,ts:p.ts,url:p.url,followers:posts[0].followers||null}))};
 }
 async function scrapeInstagram(handles,actor,limit){
   if(!handles.length) return [];
@@ -137,6 +138,19 @@ async function buildCompetitors(conf){
               youtube:await scrapeYoutube(conf.competitors_youtube||[],a.youtube||"streamers~youtube-scraper",lim) };
   const tot=out.instagram.length+out.tiktok.length+out.youtube.length;
   console.log(`Concorrentes (Apify): ${out.instagram.length} IG · ${out.tiktok.length} TikTok · ${out.youtube.length} YT (${tot} perfis).`);
+  // Ranking global dos posts que mais performaram nos últimos 30 dias
+  const cutoff=Date.now()-30*864e5;
+  const score=p=>(p.views||0)*0.05 + p.likes + p.comments*4;
+  const all=[];
+  for(const k of ["instagram","tiktok","youtube"]) for(const c of out[k]){
+    for(const p of (c._posts||[])){ const t=p.ts?Date.parse(p.ts):NaN;
+      if(!isNaN(t) && t<cutoff) continue; // só últimos 30 dias (quando há data)
+      const er=p.followers?(p.likes+p.comments)/p.followers*100:null;
+      all.push({handle:c.handle,kind:k,texto:p.texto,likes:p.likes,comments:p.comments,views:p.views,ts:p.ts,url:p.url,seguidores:p.followers||null,engaj_pct:er!=null?Math.round(er*100)/100:null}); }
+    delete c._posts;
+  }
+  out.destaques=all.sort((a,b)=>score(b)-score(a)).slice(0,12).map((p,i)=>({id:i,...p}));
+  console.log(`Destaques: ${out.destaques.length} post(s) no ranking de 30 dias.`);
   return out;
 }
 
@@ -155,14 +169,16 @@ async function aiMarket(radar,competitors,prev){
   const key=process.env.ANTHROPIC_API_KEY; if(!key){ console.log("Sem ANTHROPIC_API_KEY — síntese pulada."); return prev||null; }
   const model=process.env.AI_MODEL||"claude-opus-4-8";
   const contexto=loadContext();
+  const destaques=(competitors.destaques||[]).map(d=>({id:d.id,perfil:d.handle,plataforma:d.kind,texto:d.texto,likes:d.likes,comentarios:d.comments,views:d.views,engaj_pct:d.engaj_pct}));
   const dossie={ radar_mercado:(radar||[]).map(r=>({pergunta:r.q,resposta:r.answer,fontes:(r.results||[]).slice(0,4).map(x=>({titulo:x.title,trecho:x.content}))})),
-    concorrentes:{instagram:competitors.instagram,tiktok:competitors.tiktok,youtube:competitors.youtube} };
+    concorrentes:{instagram:competitors.instagram,tiktok:competitors.tiktok,youtube:competitors.youtube},
+    posts_que_performaram:destaques };
   const system=`${contexto}\n\nVocê é o motor de ESTUDO DE MERCADO do Ednaldo (cientista do comportamento + estrategista; NUNCA "coach"). Português do Brasil, no tom dele. Sua tarefa é olhar PARA FORA — o que está se movendo no mercado e nos concorrentes — e traduzir em leitura estratégica pela lente do método (GNC, Maman, regras de copy, a vitrine vende o destino). Não repita dados crus: interprete. Baseie cada afirmação no que veio do radar/concorrentes.`;
-  const instr=`Analise o radar de mercado (buscas web) e os concorrentes (perfis raspados). Devolva SOMENTE um JSON válido neste formato:
-{"resumo":"3-5 frases: o que está acontecendo no mercado agora e o que isso significa pro Ednaldo","tendencias":[{"titulo":"...","texto":"tendência de mercado/comportamento e por que importa"}],"oportunidades":[{"titulo":"...","texto":"brecha que ele pode ocupar, com base no que o mercado/concorrentes fazem ou deixam de fazer"}],"ameacas":[{"titulo":"...","texto":"movimento de concorrente ou do mercado que merece atenção"}],"concorrentes_leitura":"1-2 parágrafos: o que funciona pra quem, cadência, temas e ângulos que repetem — e onde estão os vazios","angulos":["ângulo/gancho de conteúdo específico pra surfar a tendência, no estilo Maman","..."]}
-Regras: 3 a 5 itens em tendências/oportunidades; 2 a 4 em ameaças; 4 a 6 em ângulos; cite nomes de concorrentes e números reais quando houver; se concorrentes vier vazio, foque no radar e diga que faltam perfis cadastrados.
+  const instr=`Analise o radar de mercado (buscas web), os concorrentes (perfis raspados) e os posts que mais performaram. Devolva SOMENTE um JSON válido neste formato:
+{"resumo":"3-5 frases: o que está acontecendo no mercado agora e o que isso significa pro Ednaldo","tendencias":[{"titulo":"...","texto":"tendência de mercado/comportamento e por que importa"}],"oportunidades":[{"titulo":"...","texto":"brecha que ele pode ocupar, com base no que o mercado/concorrentes fazem ou deixam de fazer"}],"ameacas":[{"titulo":"...","texto":"movimento de concorrente ou do mercado que merece atenção"}],"concorrentes_leitura":"1-2 parágrafos: o que funciona pra quem, cadência, temas e ângulos que repetem — e onde estão os vazios","angulos":["ângulo/gancho de conteúdo específico pra surfar a tendência, no estilo Maman","..."],"posts_destaque":[{"id":0,"porque":"2-3 frases: por que ESTE post provavelmente performou — gancho, formato, emoção, timing, dor que tocou (use a lente comportamental)","licao":"1 frase: o que o Ednaldo pode aplicar disso no conteúdo dele"}]}
+Regras: 3 a 5 itens em tendências/oportunidades; 2 a 4 em ameaças; 4 a 6 em ângulos; em posts_destaque, analise CADA item de "posts_que_performaram" pelo seu id (não invente posts); cite nomes de concorrentes e números reais quando houver; se concorrentes vier vazio, foque no radar e diga que faltam perfis cadastrados.
 DADOS:
-${JSON.stringify(dossie).slice(0,90000)}`;
+${JSON.stringify(dossie).slice(0,120000)}`;
   try{
     const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
       headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
@@ -181,6 +197,7 @@ function writeVaultDoc(bundle){
   const a=bundle.ai; if(!a) return;
   const li=arr=>(arr||[]).map(x=>`- **${x.titulo||""}** — ${x.texto||""}`).join("\n");
   const comp=k=>(bundle.competitors[k]||[]).map(c=>`- **@${c.handle}** (${c.posts} posts · ~${c.media_likes} likes · cadência ${c.cadencia_dias??"?"}d) — temas: ${(c.temas||[]).join(", ")||"—"}`).join("\n");
+  const dst=(bundle.competitors.destaques||[]).map((d,i)=>`${i+1}. **@${d.handle}** (${d.kind}) — ❤ ${d.likes} · 💬 ${d.comments}${d.views?` · ▶ ${d.views}`:""}\n   > ${(d.texto||"").replace(/\n/g," ").slice(0,180)}\n   - **Por que performou:** ${d.porque||"—"}\n   - **Lição:** ${d.licao||"—"}`).join("\n\n");
   const md=`---
 tags: [instagram, mercado, concorrencia, auto]
 gerado: ${new Date().toISOString()}
@@ -212,6 +229,9 @@ ${comp("tiktok")||"— sem perfis —"}
 ### YouTube
 ${comp("youtube")||"— sem perfis —"}
 
+## Posts que mais performaram (últimos 30 dias)
+${dst||"— sem posts —"}
+
 ## Ângulos para surfar
 ${(a.angulos||[]).map(x=>`- ${x}`).join("\n")}
 `;
@@ -228,6 +248,11 @@ async function main(){
   const bundle={ updated:new Date().toISOString(), radar, competitors,
     config:{instagram:(conf.competitors_instagram||[]).length,tiktok:(conf.competitors_tiktok||[]).length,youtube:(conf.competitors_youtube||[]).length} };
   bundle.ai=await aiMarket(radar,competitors,null);
+  // injeta a análise "por que performou" em cada post de destaque
+  if(bundle.ai && Array.isArray(bundle.ai.posts_destaque) && competitors.destaques){
+    const m={}; bundle.ai.posts_destaque.forEach(x=>{ if(x&&x.id!=null) m[x.id]=x; });
+    competitors.destaques.forEach(d=>{ const a=m[d.id]; if(a){ d.porque=a.porque||""; d.licao=a.licao||""; } });
+  }
   writeVaultDoc(bundle);
   fs.mkdirSync(DIR,{recursive:true});
   fs.writeFileSync(OUT, encrypt(bundle,PASS));
