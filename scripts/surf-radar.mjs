@@ -58,6 +58,15 @@ function loadContext(){
 }
 
 /* ---------- IA (filtro de surfabilidade + formato) ---------- */
+// Recupera os temas caso o modelo vaze a sintaxe da ferramenta no texto (temas chega vazio).
+function recoverTemas(input,content){
+  if(Array.isArray(input.temas)&&input.temas.length) return input;
+  const hay=(input.resumo||"")+"\n"+((content||[]).map(b=>b.text||"").join("\n"));
+  const m=hay.match(/\[\s*\{[\s\S]*\}\s*\]/);
+  if(m){ try{ input.temas=JSON.parse(m[0]); }catch{} }
+  if(input.resumo) input.resumo=input.resumo.split(/<\/?parameter|\[\s*\{/)[0].replace(/<[^>]*>/g,"").trim();
+  return input;
+}
 async function aiRadar(radar,trends){
   const key=process.env.ANTHROPIC_API_KEY; if(!key){ console.error("Sem ANTHROPIC_API_KEY."); return null; }
   const model=process.env.AI_MODEL||"claude-opus-4-8";
@@ -89,8 +98,9 @@ ${JSON.stringify(dossie).slice(0,120000)}`;
         messages:[{role:"user",content:instr}]})});
     const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
     const tu=(j.content||[]).find(b=>b.type==="tool_use"); if(!tu||!tu.input) throw new Error("sem tool_use");
-    console.log(`Radar gerado pela IA (${model}): ${(tu.input.temas||[]).length} tema(s).`);
-    return {model,...tu.input};
+    const out=recoverTemas({...tu.input},j.content);
+    console.log(`Radar gerado pela IA (${model}): ${(out.temas||[]).length} tema(s).`);
+    return {model,...out};
   }catch(e){ console.error("Falha na IA do radar:",e.message); return null; }
 }
 
