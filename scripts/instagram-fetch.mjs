@@ -303,6 +303,15 @@ function buildDossier(b){
   return {perfil:{nome:p.name,usuario:p.username,seguidores:p.followers_count,posts:p.media_count},
     estatisticas:aiStats(b.media||[]),historico_diario:historico,tendencia_90d:tendencia90,multicanal,posts};
 }
+const REGRA_CERTEZA=`
+
+===== REGRA DE CERTEZA (vale para TODA análise deste painel) =====
+A credibilidade vale mais que um insight a mais. Antes de afirmar qualquer coisa:
+- Separe FATO (um número presente nos dados) de HIPÓTESE (a sua explicação para ele). Nunca apresente hipótese como se fosse fato.
+- Quando algo for hipótese, use linguagem de verificação ("vale conferir", "confirmar antes de agir"), nunca alarme cravado. É melhor perder um possível insight do que dar um alarme falso.
+- Só chame algo de "problema", "perda", "queda", "sangria" ou "vazamento" quando o próprio número PROVAR. Se não dá pra provar com o dado em mãos, é item de CONFERIR, não de AGIR.
+- Em especial: NÃO trate a diferença entre métricas que medem coisas diferentes (ex.: "cliques no link" × "visitas à página/landing page view") como perda ou vazamento — explique que são métricas diferentes e proponha conferir destino e medição, sem cravar problema.
+- Nunca invente números, datas ou resultados que não estão nos dados.`;
 function loadContext(){
   // Lê o método AO VIVO do vault (se montado em VAULT_DIR); senão usa o contexto.md commitado.
   const dir=process.env.VAULT_DIR;
@@ -311,6 +320,7 @@ function loadContext(){
     "Estudo para modelar conteudo/REGRAS — Copy Humanizada e Vitrine que Vende.md",
     "Fichas/FICHA — METODO MAMAN CONTEUDO VIRAL.md"
   ].join("\n")).split(/\n/).map(s=>s.trim()).filter(Boolean);
+  let base="";
   if(dir && fs.existsSync(dir)){
     const out=[]; let total=0;
     for(const f of files){
@@ -320,10 +330,11 @@ function loadContext(){
         out.push(`\n\n===== ${f} =====\n${t}`);
       }catch{}
     }
-    if(out.length){ console.log(`Contexto: ${out.length} arquivo(s) lidos do vault ao vivo.`); return out.join(""); }
-    console.error("VAULT_DIR existe mas nenhum arquivo de método foi lido — caindo para contexto.md.");
+    if(out.length){ console.log(`Contexto: ${out.length} arquivo(s) lidos do vault ao vivo.`); base=out.join(""); }
+    else console.error("VAULT_DIR existe mas nenhum arquivo de método foi lido — caindo para contexto.md.");
   }
-  try{ console.log("Contexto: contexto.md (fallback)."); return fs.readFileSync(new URL("./contexto.md",import.meta.url),"utf8"); }catch{ return ""; }
+  if(!base){ try{ console.log("Contexto: contexto.md (fallback)."); base=fs.readFileSync(new URL("./contexto.md",import.meta.url),"utf8"); }catch{ base=""; } }
+  return base+REGRA_CERTEZA;
 }
 async function aiDiagnosis(bundle, prevAi){
   const key=process.env.ANTHROPIC_API_KEY;
