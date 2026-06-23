@@ -113,6 +113,7 @@
   </header>
   <nav class="tabs" id="tabs">
     <div class="tab active" data-t="overview">Visão Geral</div>
+    <div class="tab" data-t="gestao">Gestão</div>
     <div class="tab" data-t="ai">Diagnóstico</div>
     <div class="tab" data-t="compare">Comparar</div>
     <div class="tab" data-t="diag">Inteligência</div>
@@ -150,6 +151,10 @@
     <div class="card"><div id="growthChart"></div></div>
     <div class="sectitle">🧠 Inteligência do conteúdo <span class="tag">dos seus posts</span></div>
     <div id="recs"></div>
+  </section>
+  <section id="gestao">
+    <div class="sectitle" style="margin-top:0">🗂️ Gestão à vista <span class="tag">ações com status, responsável e prazo</span></div>
+    <div id="gestaoBody"></div>
   </section>
   <section id="ai">
     <div style="margin-bottom:14px"><button class="pbtn" onclick="downloadDoc()">⬇ Exportar base de conteúdo p/ o vault (.md)</button></div>
@@ -361,7 +366,7 @@ function renderSeries(){
     `<div class="card kpi"><div class="lbl">Interações · total</div><div class="val" style="font-size:24px">${vc(tot&&tot.inter)}</div><div class="sub">${note}</div></div>`;}
 
 /* ===== render (mesma lógica do painel local) ===== */
-function renderAll(){renderHeader();renderExec();renderCockpit();renderAcoes();renderGrowth();renderAI();renderCompare();renderAds();renderMulti();renderMarket();renderConc();renderAudience();renderGoals();renderHistory();applyPeriod();
+function renderAll(){renderHeader();renderExec();renderCockpit();renderAcoes();renderGestao();renderGrowth();renderAI();renderCompare();renderAds();renderMulti();renderMarket();renderConc();renderAudience();renderGoals();renderHistory();applyPeriod();
   $("#foot").textContent="Atualizado em "+new Date(B.updated).toLocaleString("pt-BR")+" · dados criptografados";}
 
 function renderHeader(){const p=STATE.profile,h=histArr();$("#avatar").src=p.profile_picture_url||"";
@@ -459,6 +464,55 @@ function renderAcoes(){
     (MKT.ai.angulos||[]).slice(0,1).forEach(x=>A.push(["✍️","Ângulo",x]));}
   if(!A.length){host.innerHTML=`<div class="empty">As ações recomendadas aparecem conforme as IAs do painel rodam (diagnóstico, anúncios, multicanal, mercado).</div>`;return;}
   host.innerHTML=A.map(r=>`<div class="rec"><div class="ic">${r[0]}</div><div><h4 style="display:flex;gap:8px;align-items:center"><span class="tag">${r[1]}</span></h4><p style="margin-top:2px">${r[2]}</p></div></div>`).join("");
+}
+/* ===== Gestão à vista (quadro de ações) ===== */
+const GLS="ig_gestao_v1"; let GSUG=[];
+function gLoad(){try{return JSON.parse(localStorage.getItem(GLS))||[];}catch{return[];}}
+function gSave(a){try{localStorage.setItem(GLS,JSON.stringify(a));}catch{}}
+function gid(src,text){return (src+"-"+text).toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,90);}
+function gAddSug(i){const s=GSUG[i];if(s)gAdd(s.src,s.text);}
+function gAdd(src,text){const a=gLoad();const id=gid(src,text);if(a.some(t=>t.id===id)){renderGestao();return;}a.push({id,src,text:String(text).trim(),status:"todo",owner:"",due:"",ts:Date.now()});gSave(a);renderGestao();}
+function gAddManual(){const inp=$("#gNew");if(!inp)return;const v=(inp.value||"").trim();if(!v)return;gAdd("✍️ Manual",v);inp.value="";}
+function gSet(id,k,v){const a=gLoad();const t=a.find(x=>x.id===id);if(!t)return;t[k]=v;gSave(a);if(k==="status")renderGestao();}
+function gDel(id){gSave(gLoad().filter(x=>x.id!==id));renderGestao();}
+function gestaoSugestoes(){
+  const S=[],a=B.ai;
+  if(a){(a.pauta||[]).forEach(x=>S.push(["📝 Conteúdo",x]));(a.atencao||[]).forEach(x=>S.push(["⚠️ Atenção",(x.titulo?x.titulo+" — ":"")+(x.texto||"")]));}
+  const ad=B.ads&&B.ads.ai;if(ad){(ad.acoes||[]).forEach(x=>S.push(["💸 Tráfego",x]));}
+  const w=B.windsor&&B.windsor.ai;if(w){(w.potencializar||[]).forEach(x=>S.push(["🌐 Multicanal",(x.canal?x.canal+": ":"")+(x.acao||"")]));}
+  if(typeof MKT!=="undefined"&&MKT&&MKT.ai){(MKT.ai.oportunidades||[]).forEach(x=>S.push(["🔭 Mercado",(x.titulo?x.titulo+" — ":"")+(x.texto||"")]));(MKT.ai.angulos||[]).forEach(x=>S.push(["✍️ Ângulo",x]));}
+  return S.map(([src,text])=>({src,text:String(text||"").trim()})).filter(x=>x.text.length>3);
+}
+function gTaskCard(t){
+  const inS="padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--txt);font-size:12px";
+  const opt=(v,l)=>`<option value="${v}"${t.status===v?" selected":""}>${l}</option>`;
+  const over=t.due&&t.status!=="done"&&t.due<new Date().toISOString().slice(0,10);
+  return `<div class="card" style="margin:0 0 10px"><div style="font-size:11px;color:var(--mut);margin-bottom:3px">${t.src}</div>`+
+    `<div style="font-size:14px;line-height:1.45;margin-bottom:8px">${(t.text||"").replace(/</g,"&lt;")}</div>`+
+    `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">`+
+    `<input value="${escA(t.owner)}" onchange="gSet('${t.id}','owner',this.value)" placeholder="👤 responsável" style="${inS};width:120px">`+
+    `<input type="date" value="${t.due||""}" onchange="gSet('${t.id}','due',this.value)" style="${inS}${over?';border-color:#ff5c7a;color:#ff5c7a':''}">`+
+    `<select onchange="gSet('${t.id}','status',this.value)" style="${inS}">${opt("todo","🟡 A fazer")}${opt("doing","🔵 Fazendo")}${opt("done","🟢 Feito")}</select>`+
+    `<button onclick="gDel('${t.id}')" title="Remover" style="margin-left:auto;background:none;border:0;cursor:pointer;font-size:15px;opacity:.6">🗑️</button>`+
+    `</div></div>`;
+}
+function renderGestao(){
+  const host=$("#gestaoBody");if(!host)return;
+  const board=gLoad();
+  let h=`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="gNew" placeholder="Escreva uma ação manual e adicione ao quadro…" onkeydown="if(event.key==='Enter')gAddManual()" style="flex:1;min-width:200px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--txt);font-size:14px"><button onclick="gAddManual()" style="background:var(--acc);color:#fff;border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer">+ Adicionar</button></div></div>`;
+  const cols=[["todo","🟡 A fazer"],["doing","🔵 Fazendo"],["done","🟢 Feito"]];
+  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;align-items:start">`;
+  for(const [st,label] of cols){
+    const items=board.filter(t=>t.status===st).sort((a,b)=>(a.due||"~").localeCompare(b.due||"~"));
+    h+=`<div><div class="sectitle" style="margin-top:0">${label} <span class="tag">${items.length}</span></div>${items.map(gTaskCard).join("")||`<div class="empty" style="padding:16px;font-size:13px">Nada aqui ainda.</div>`}</div>`;
+  }
+  h+=`</div>`;
+  GSUG=gestaoSugestoes();const ids=new Set(board.map(t=>t.id));
+  const sug=GSUG.map((s,i)=>({...s,i})).filter(s=>!ids.has(gid(s.src,s.text)));
+  h+=`<div class="sectitle">💡 Sugestões da IA <span class="tag">${sug.length}</span></div>`;
+  h+=`<p style="color:var(--mut);font-size:12px;margin:0 0 10px">Recomendações geradas pelas IAs (diagnóstico, anúncios, multicanal, mercado). Clique <b>+ adicionar</b> pra virar tarefa no quadro.</p>`;
+  h+= sug.length? sug.map(s=>`<div class="rec"><div class="ic">💡</div><div style="flex:1"><h4 style="margin:0"><span class="tag">${s.src}</span></h4><p style="margin-top:3px">${(s.text||"").replace(/</g,"&lt;")}</p></div><button onclick="gAddSug(${s.i})" style="align-self:center;background:none;border:1px solid var(--acc);color:var(--acc);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;white-space:nowrap">+ adicionar</button></div>`).join("") : `<div class="empty">Sem sugestões novas — ou as IAs ainda não rodaram, ou você já levou tudo pro quadro. 👏</div>`;
+  host.innerHTML=h;
 }
 function renderRecs(){const recs=[],m=STATE.media,bt=groupBy(m,"type");
   const reels=bt.REELS||[],feed=(bt.FEED||[]).concat(bt.CAROUSEL_ALBUM||[]);
@@ -995,7 +1049,7 @@ function renderDiag(){
 }
 
 /* tabs */
-const SEC={overview:"overview",ai:"ai",compare:"compare",diag:"diag",content:"content_",ads:"ads",multi:"multi",market:"market",concorrentes:"concorrentes",audience:"audience",goals:"goals",history:"history"};
+const SEC={overview:"overview",gestao:"gestao",ai:"ai",compare:"compare",diag:"diag",content:"content_",ads:"ads",multi:"multi",market:"market",concorrentes:"concorrentes",audience:"audience",goals:"goals",history:"history"};
 const PBAR_TABS=new Set(["overview","content"]); // barra de período global só vale nessas abas
 function syncPbar(tab){const pb=$("#periodBar");if(pb)pb.style.display=PBAR_TABS.has(tab)?"":"none";}
 $("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;
