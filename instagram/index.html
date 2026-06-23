@@ -711,6 +711,12 @@ function adsAIBlock(a){
   h+=`<div class="foot" style="margin-bottom:18px">Inteligência de anúncios gerada por IA em ${a.generated?new Date(a.generated).toLocaleString("pt-BR"):"—"}${a.model?" · "+a.model:""}</div>`;
   return `<div style="margin-bottom:8px">${h}</div>`;
 }
+function adIsBoost(a){return !!(a&&(a.igMediaId||a.permalink));}
+function adsOrigem(a){
+  if(a.permalink) return `<a href="${a.permalink}" target="_blank" rel="noopener" class="tag" style="border-color:var(--acc);color:var(--acc);text-decoration:none" title="Abrir o post do feed">🔼 post do feed ↗</a>`;
+  if(a.igMediaId) return `<span class="tag" style="border-color:var(--acc);color:var(--acc)" title="Impulsiona um post do feed">🔼 post do feed</span>`;
+  return `<span class="tag" style="opacity:.6" title="Criativo feito só para o anúncio">criativo de anúncio</span>`;
+}
 function renderAds(){
   const host=$("#adsBody");if(!host)return;const A=B.ads;
   document.querySelectorAll("#adsBar [data-aw]").forEach(b=>b.classList.toggle("active",+b.dataset.aw===adsW));
@@ -730,9 +736,11 @@ function renderAds(){
   }
   const top=(A.topAds||[]);
   if(top.length){
-    h+=`<div class="sectitle">🏆 Top anúncios <span class="tag">por investimento · 28d</span></div>`;
-    h+=`<div class="card" style="overflow-x:auto"><table class="ctbl"><thead><tr><th>Anúncio</th><th class="num">Gasto</th><th class="num">Alcance</th><th class="num">CTR</th><th class="num">CPM</th></tr></thead><tbody>`+
-      top.map(a=>`<tr><td title="${(a.name||"").replace(/"/g,"&quot;")}">${(a.name||"(sem nome)").slice(0,60)}</td><td class="num">${money(a.spend)}</td><td class="num">${fmt(a.reach)}</td><td class="num">${a.ctr?pct(a.ctr):"—"}</td><td class="num">${money(a.cpm)}</td></tr>`).join("")+`</tbody></table></div>`;
+    const nBoost=top.filter(adIsBoost).length;
+    h+=`<div class="sectitle">🏆 Top anúncios <span class="tag">por investimento · 28d</span>${nBoost?` <span class="tag" style="border-color:var(--acc);color:var(--acc)">🔼 ${nBoost} usa(m) post do feed</span>`:""}</div>`;
+    h+=`<div class="card" style="overflow-x:auto"><table class="ctbl"><thead><tr><th>Anúncio</th><th>Origem</th><th class="num">Gasto</th><th class="num">Alcance</th><th class="num">CTR</th><th class="num">CPM</th></tr></thead><tbody>`+
+      top.map(a=>`<tr><td title="${(a.name||"").replace(/"/g,"&quot;")}">${(a.name||"(sem nome)").slice(0,60)}</td><td>${adsOrigem(a)}</td><td class="num">${money(a.spend)}</td><td class="num">${fmt(a.reach)}</td><td class="num">${a.ctr?pct(a.ctr):"—"}</td><td class="num">${money(a.cpm)}</td></tr>`).join("")+`</tbody></table></div>`;
+    if(nBoost) h+=`<div class="foot" style="margin-top:6px">🔼 <b>post do feed</b> = anúncio que impulsiona um post orgânico do seu feed (dá pra abrir e ver o post). “criativo de anúncio” = peça feita só pra campanha, não publicada no feed.</div>`;
   }
   h+=`<div class="foot">Conta ${A.account||""} · atualizado ${A.updated?new Date(A.updated).toLocaleString("pt-BR"):"—"} · valores na moeda da conta de anúncios</div>`;
   host.innerHTML=h;

@@ -182,11 +182,27 @@ async function adsCampaigns(token,acct,days,limit=50){
     return rows.slice(0,limit);
   }catch(e){ console.error(`ads campanhas ${days}d: ${e.message}`); return []; }
 }
+async function adsAttachCreatives(token,ads){
+  // Para cada top anúncio, busca o criativo e descobre se ele usa um post do feed (impulsionamento).
+  for(const ad of ads||[]){
+    try{
+      const j=await api(token,`${ad.id}?fields=creative{id,object_type,instagram_permalink_url,effective_instagram_media_id,effective_object_story_id,thumbnail_url,image_url}`);
+      const c=j&&j.creative; if(!c) continue;
+      ad.igMediaId=c.effective_instagram_media_id||null;     // id do post do feed usado (se houver)
+      ad.permalink=c.instagram_permalink_url||null;          // link público do post (se houver)
+      ad.thumb=c.thumbnail_url||c.image_url||null;
+      ad.objType=c.object_type||null;                        // SHARE costuma ser post impulsionado
+    }catch(e){ /* silencioso por anúncio — não derruba a coleta */ }
+  }
+}
 async function buildAds(token){
   const t=(process.env.ADS_TOKEN||"").trim()||token;
   const acct=await adsResolveAccount(t); if(!acct){ console.log("Anúncios pulados (sem conta acessível)."); return null; }
   const periods={}; for(const d of [7,28,90]) periods[d]=await adsPeriod(t,acct,d);
   const topAds=await adsTop(t,acct,28,12);
+  await adsAttachCreatives(t,topAds);
+  const usados=topAds.filter(a=>a.igMediaId||a.permalink).length;
+  if(usados) console.log(`Anúncios — ${usados}/${topAds.length} top anúncios usam post do feed (impulsionamento).`);
   const campaigns=await adsCampaigns(t,acct,28,50);
   const ok=Object.values(periods).some(Boolean)||topAds.length;
   console.log(ok?`Anúncios coletados (${acct}) · ${campaigns.length} campanha(s).`:`Anúncios: conta ${acct} sem dados no período.`);
