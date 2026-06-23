@@ -667,6 +667,7 @@ function renderAds(){
    ["Frequência",p.frequency?p.frequency.toFixed(2):"—"],["Cliques",fmt(p.clicks)],["CTR",p.ctr?pct(p.ctr):"—"],["CPM",money(p.cpm)]];
   let h=adsAIBlock(A.ai);
   h+=`<div class="grid kpis">${kpis.map(x=>`<div class="card kpi"><div class="lbl">${x[0]} · ${adsW}D</div><div class="val">${x[1]}</div></div>`).join("")}</div>`;
+  h+=renderCampaigns(A);
   const acts=Object.entries(p.actions||{}).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   if(acts.length){
     h+=`<div class="sectitle">🎯 Resultados <span class="tag">por tipo de ação</span></div>`;
@@ -681,6 +682,29 @@ function renderAds(){
   }
   h+=`<div class="foot">Conta ${A.account||""} · atualizado ${A.updated?new Date(A.updated).toLocaleString("pt-BR"):"—"} · valores na moeda da conta de anúncios</div>`;
   host.innerHTML=h;
+}
+const CAMP_ACAO={escalar:["⬆️ Escalar","#2ecc71"],manter:["✅ Manter","var(--mut)"],observar:["👀 Observar","#f1c40f"],
+  cortar_orcamento:["✂️ Cortar orçam.","#e67e22"],pausar:["⏸️ Pausar","#ff5c7a"],revisar_criativo:["🎨 Criativo","#7c5cff"],revisar_publico:["🎯 Público","#7c5cff"]};
+function renderCampaigns(A){
+  const C=A.campaigns||[]; if(!C.length) return "";
+  const ai=A.campaignsAI; const prop={};
+  if(ai&&ai.campanhas) ai.campanhas.forEach(p=>prop[(p.campanha||"").toLowerCase()]=p);
+  const PR={alta:0,media:1,baixa:2};
+  const rows=C.map(c=>({c,p:prop[(c.name||"").toLowerCase()]||null}))
+    .sort((a,b)=>{const pa=a.p?(PR[a.p.prioridade]??3):3,pb=b.p?(PR[b.p.prioridade]??3):3;return pa-pb||b.c.spend-a.c.spend;});
+  let head=ai&&ai.resumo?`<div class="card" style="border-color:var(--acc)"><div class="sectitle" style="margin-top:0">🎛️ Central de Campanhas — leitura</div><p style="font-size:14px;line-height:1.55">${ai.resumo}</p><p style="font-size:12px;color:var(--mut);margin:8px 0 0">Proposta de ação por campanha. <b>Nada é executado sem o seu “pode”</b> — pausar e orçamento a gente faz junto.</p></div>`
+    :`<div class="sectitle">🎛️ Central de Campanhas <span class="tag">${C.length} campanha(s)</span></div>`;
+  let h=`<div class="card" style="overflow-x:auto"><table class="ctbl"><thead><tr><th>Campanha</th><th class="num">Gasto 28d</th><th class="num">CTR</th><th class="num">Freq.</th><th>Proposta da IA</th></tr></thead><tbody>`;
+  for(const {c,p} of rows){
+    const st=(c.effective_status||c.status||"").toUpperCase();
+    const stBadge=st&&st!=="ACTIVE"?` <span class="tag" style="opacity:.65">${st}</span>`:"";
+    let badge='<span class="muted">—</span>';
+    if(p){const a=CAMP_ACAO[p.acao]||[p.acao,"var(--mut)"];badge=`<span class="pill" style="border-color:${a[1]};color:${a[1]}">${a[0]}</span>${p.prioridade==="alta"?' <span class="tag" style="border-color:#ff5c7a;color:#ff5c7a">hoje</span>':''}`;}
+    h+=`<tr><td title="${(c.name||"").replace(/"/g,"&quot;")}">${(c.name||"(sem nome)").slice(0,44)}${stBadge}</td><td class="num">${money(c.spend)}</td><td class="num">${c.ctr?pct(c.ctr):"—"}</td><td class="num">${c.frequency?c.frequency.toFixed(2):"—"}</td><td>${badge}</td></tr>`;
+    if(p&&p.motivo) h+=`<tr><td colspan="5" style="padding:0 0 8px;color:var(--mut);font-size:12px">↳ ${p.motivo}${p.sugestao?` <b style="color:var(--txt)">→ sugestão: ${money(p.sugestao)}/dia</b>`:""}</td></tr>`;
+  }
+  h+=`</tbody></table></div>`;
+  return head+h;
 }
 
 /* ===== Multicanal (Windsor.ai) ===== */

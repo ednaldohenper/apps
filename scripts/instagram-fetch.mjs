@@ -166,14 +166,31 @@ async function adsResolveAccount(token){
   if(best && bestSpend>0){ console.log(`Ads — conta auto-selecionada: ${best} (maior gasto 90d: ${bestSpend}).`); return best; }
   console.log("Ads — nenhuma conta com gasto nos últimos 90 dias."); return best||visible[0].id;
 }
+async function adsCampaigns(token,acct,days,limit=50){
+  // Performance por campanha + status/orçamento (pra propor pausar/escalar/cortar).
+  const tr=encodeURIComponent(JSON.stringify({since:_ymd(Date.now()-days*864e5),until:_ymd(Date.now())}));
+  try{
+    const ins=await api(token,`${acct}/insights?level=campaign&limit=${limit}&fields=campaign_id,campaign_name,spend,impressions,reach,frequency,clicks,ctr,cpm,actions,cost_per_action_type&time_range=${tr}`);
+    const meta=await api(token,`${acct}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget&limit=200`).catch(()=>({data:[]}));
+    const m={}; (meta?.data||[]).forEach(c=>m[c.id]={status:c.status,effective_status:c.effective_status,objetivo:c.objective,
+      orcamento_diario:c.daily_budget?+c.daily_budget/100:null,orcamento_total:c.lifetime_budget?+c.lifetime_budget/100:null});
+    const rows=(ins?.data||[]).map(r=>{const actions={};(r.actions||[]).forEach(a=>actions[a.action_type]=+a.value);
+      const cpa={};(r.cost_per_action_type||[]).forEach(a=>cpa[a.action_type]=+a.value);
+      return {id:r.campaign_id,name:r.campaign_name,spend:+r.spend||0,reach:+r.reach||0,impressions:+r.impressions||0,
+        clicks:+r.clicks||0,ctr:+r.ctr||0,cpm:+r.cpm||0,frequency:+r.frequency||0,actions,cpa,...(m[r.campaign_id]||{})};});
+    rows.sort((a,b)=>b.spend-a.spend);
+    return rows.slice(0,limit);
+  }catch(e){ console.error(`ads campanhas ${days}d: ${e.message}`); return []; }
+}
 async function buildAds(token){
   const t=(process.env.ADS_TOKEN||"").trim()||token;
   const acct=await adsResolveAccount(t); if(!acct){ console.log("Anúncios pulados (sem conta acessível)."); return null; }
   const periods={}; for(const d of [7,28,90]) periods[d]=await adsPeriod(t,acct,d);
   const topAds=await adsTop(t,acct,28,12);
+  const campaigns=await adsCampaigns(t,acct,28,50);
   const ok=Object.values(periods).some(Boolean)||topAds.length;
-  console.log(ok?`Anúncios coletados (${acct}).`:`Anúncios: conta ${acct} sem dados no período.`);
-  return {account:acct, updated:new Date().toISOString(), periods, topAds};
+  console.log(ok?`Anúncios coletados (${acct}) · ${campaigns.length} campanha(s).`:`Anúncios: conta ${acct} sem dados no período.`);
+  return {account:acct, updated:new Date().toISOString(), periods, topAds, campaigns};
 }
 /* ---------- Windsor.ai (multicanal: ads + orgânico, ~28 dias) ---------- */
 const WINDSOR_FIELDS_DEFAULT="source,date,account_name,campaign,clicks,impressions,spend,reach,ctr,cpm,cpc,frequency,conversions,conversion_values,results,likes,comments,shares,saves,video_views,video_plays,total_engagements,total_interactions,engagement,followers,profile_visits,profile_views,plays,accounts_reached,accounts_engaged";
@@ -391,6 +408,46 @@ ${JSON.stringify(adsDossier(ads))}`;
     return {generated:new Date().toISOString(),model,...parsed};
   }catch(e){ console.error("Falha na inteligência de anúncios (mantendo a anterior):",e.message); return prev||null; }
 }
+/* ---------- Central de Campanhas: proposta de ação por campanha (IA) ---------- */
+function campDossier(ads){
+  const r2=n=>Math.round(n*100)/100;
+  return (ads.campaigns||[]).map(c=>{
+    const principais=Object.entries(c.actions||{}).filter(([k])=>/lead|purchase|messaging|complete_registration|link_click|landing_page_view/i.test(k))
+      .map(([k,v])=>({tipo:k,qtd:v,custo:c.cpa?.[k]!=null?r2(c.cpa[k]):null}));
+    return {id:c.id,campanha:c.name,status:c.effective_status||c.status,objetivo:c.objetivo,
+      orcamento_diario:c.orcamento_diario,orcamento_total:c.orcamento_total,
+      gasto_28d:r2(c.spend),alcance:c.reach,ctr:r2(c.ctr),cpm:r2(c.cpm),frequencia:r2(c.frequency),cliques:c.clicks,
+      resultados:principais};
+  });
+}
+async function aiCampaigns(bundle, prev){
+  const key=process.env.ANTHROPIC_API_KEY; if(!key) return prev||null;
+  const ads=bundle.ads; if(!ads || !(ads.campaigns||[]).length) return prev||null;
+  const model=process.env.AI_MODEL||"claude-opus-4-8";
+  const contexto=loadContext();
+  const system=`${contexto}\n\nVocê é o GESTOR DE CAMPANHAS de tráfego pago do Ednaldo (cientista do comportamento + estrategista; NUNCA "coach"). Português do Brasil, tom dele. Você recebe as campanhas do Meta Ads dos últimos 28 dias (gasto, CTR, CPM, frequência, resultados e custo por resultado, status e orçamento) e propõe, para CADA campanha, UMA ação clara. Pense como dono que cuida do próprio dinheiro: corte o que sangra, escale o que rende, e seja honesto quando faltar dado de resultado/conversão (não invente). Frequência alta (>3-4) com CTR caindo = saturação. Custo por resultado muito acima das outras = candidata a pausar ou revisar. A decisão final e a execução são SEMPRE do Ednaldo (você só propõe).`;
+  const instr=`Para cada campanha em DADOS, proponha uma ação. Registre chamando a ferramenta responder.
+acao: uma de [escalar, manter, observar, cortar_orcamento, pausar, revisar_criativo, revisar_publico].
+Para escalar/cortar_orcamento, sugira o novo orçamento diário em "sugestao" (número em reais) com base no orçamento atual e no desempenho. Em "motivo", 1-2 frases citando o número que justifica (custo por resultado, CTR, frequência, gasto sem resultado). prioridade: alta|media|baixa (alta = mexer hoje). Não invente resultados: se a campanha não tem conversão/resultado rastreado, diga isso no motivo e seja conservador.
+DADOS (campanhas, 28 dias):
+${JSON.stringify(campDossier(ads)).slice(0,80000)}`;
+  const item={type:"object",properties:{
+    campanha:{type:"string"},acao:{type:"string",enum:["escalar","manter","observar","cortar_orcamento","pausar","revisar_criativo","revisar_publico"]},
+    motivo:{type:"string"},sugestao:{type:"number"},prioridade:{type:"string",enum:["alta","media","baixa"]}},
+    required:["campanha","acao","motivo","prioridade"]};
+  const schema={type:"object",properties:{resumo:{type:"string"},campanhas:{type:"array",items:item}},required:["resumo","campanhas"]};
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model,max_tokens:4000,system,
+        tools:[{name:"responder",description:"Registra as propostas de ação por campanha.",input_schema:schema}],
+        tool_choice:{type:"tool",name:"responder"},messages:[{role:"user",content:instr}]})});
+    const j=await res.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+    const tu=(j.content||[]).find(b=>b.type==="tool_use"); if(!tu||!tu.input) throw new Error("sem tool_use");
+    console.log(`Central de campanhas gerada: ${(tu.input.campanhas||[]).length} proposta(s).`);
+    return {generated:new Date().toISOString(),model,...tu.input};
+  }catch(e){ console.error("Falha na central de campanhas (mantendo anterior):",e.message); return prev||null; }
+}
 /* ---------- Leitura multicanal (Windsor) com IA ---------- */
 const WSRC_LABEL={facebook:"Meta Ads",instagram:"Instagram orgânico",instagram_public:"Instagram orgânico",facebook_organic:"Facebook orgânico",tiktok_organic:"TikTok orgânico",tiktok:"TikTok Ads",youtube:"YouTube",google_ads:"Google Ads",linkedin_organic:"LinkedIn orgânico"};
 function multiDossier(w){
@@ -570,7 +627,7 @@ async function main(){
   const bundle={ updated:new Date().toISOString(), profile, accDay, acc28, media, series, totals, ads, windsor, demo:demoData, history };
   bundle.ai=await aiDiagnosis(bundle, prev.ai);
   bundle.compare=await aiCompare(bundle, prev.compare);
-  if(bundle.ads){ bundle.ads.ai=await aiAds(bundle, prev.ads?.ai); }
+  if(bundle.ads){ bundle.ads.ai=await aiAds(bundle, prev.ads?.ai); bundle.ads.campaignsAI=await aiCampaigns(bundle, prev.ads?.campaignsAI); }
   if(bundle.windsor){ bundle.windsor.ai=await aiMulti(bundle, prev.windsor?.ai); }
   writeVaultDoc(bundle);
   fs.mkdirSync(DIR,{recursive:true});
