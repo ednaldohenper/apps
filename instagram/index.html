@@ -496,22 +496,34 @@ function gTaskCard(t){
     `<button onclick="gDel('${t.id}')" title="Remover" style="margin-left:auto;background:none;border:0;cursor:pointer;font-size:15px;opacity:.6">🗑️</button>`+
     `</div></div>`;
 }
+let gFilter="tudo";
+const GFRENTES=[["tudo","Tudo"],["conteudo","📝 Conteúdo"],["trafego","💸 Tráfego"],["multicanal","🌐 Multicanal"],["mercado","🔭 Mercado"]];
+function gFrente(src){src=src||"";
+  if(/Tráfego/.test(src)) return "trafego";
+  if(/Multicanal/.test(src)) return "multicanal";
+  if(/Mercado|Ângulo/.test(src)) return "mercado";
+  if(/Manual/.test(src)) return "manual";
+  return "conteudo"; // 📝 Conteúdo e ⚠️ Atenção
+}
+function gVisible(src){return gFilter==="tudo"||gFrente(src)===gFilter||gFrente(src)==="manual";} // manual sempre aparece
+function gSetFilter(f){gFilter=f;renderGestao();}
 function renderGestao(){
   const host=$("#gestaoBody");if(!host)return;
   const board=gLoad();
   let h=`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="gNew" placeholder="Escreva uma ação manual e adicione ao quadro…" onkeydown="if(event.key==='Enter')gAddManual()" style="flex:1;min-width:200px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--txt);font-size:14px"><button onclick="gAddManual()" style="background:var(--acc);color:#fff;border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer">+ Adicionar</button></div></div>`;
+  h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">`+GFRENTES.map(([k,l])=>{const n=k==="tudo"?board.length:board.filter(t=>gFrente(t.src)===k).length;return `<button onclick="gSetFilter('${k}')" style="cursor:pointer;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid ${gFilter===k?'var(--acc)':'var(--line)'};color:${gFilter===k?'var(--acc)':'var(--mut)'};background:${gFilter===k?'rgba(124,92,255,.10)':'transparent'}">${l}${n?` <b>${n}</b>`:""}</button>`;}).join("")+`</div>`;
   const cols=[["todo","🟡 A fazer"],["doing","🔵 Fazendo"],["done","🟢 Feito"]];
   h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;align-items:start">`;
   for(const [st,label] of cols){
-    const items=board.filter(t=>t.status===st).sort((a,b)=>(a.due||"~").localeCompare(b.due||"~"));
+    const items=board.filter(t=>t.status===st&&gVisible(t.src)).sort((a,b)=>(a.due||"~").localeCompare(b.due||"~"));
     h+=`<div><div class="sectitle" style="margin-top:0">${label} <span class="tag">${items.length}</span></div>${items.map(gTaskCard).join("")||`<div class="empty" style="padding:16px;font-size:13px">Nada aqui ainda.</div>`}</div>`;
   }
   h+=`</div>`;
   GSUG=gestaoSugestoes();const ids=new Set(board.map(t=>t.id));
-  const sug=GSUG.map((s,i)=>({...s,i})).filter(s=>!ids.has(gid(s.src,s.text)));
-  h+=`<div class="sectitle">💡 Sugestões da IA <span class="tag">${sug.length}</span></div>`;
+  const sug=GSUG.map((s,i)=>({...s,i})).filter(s=>!ids.has(gid(s.src,s.text))&&gVisible(s.src));
+  h+=`<div class="sectitle">💡 Sugestões da IA <span class="tag">${sug.length}</span>${gFilter!=="tudo"?` <span class="tag" style="opacity:.7">filtro: ${(GFRENTES.find(f=>f[0]===gFilter)||[])[1]||""}</span>`:""}</div>`;
   h+=`<p style="color:var(--mut);font-size:12px;margin:0 0 10px">Recomendações geradas pelas IAs (diagnóstico, anúncios, multicanal, mercado). Clique <b>+ adicionar</b> pra virar tarefa no quadro.</p>`;
-  h+= sug.length? sug.map(s=>`<div class="rec"><div class="ic">💡</div><div style="flex:1"><h4 style="margin:0"><span class="tag">${s.src}</span></h4><p style="margin-top:3px">${(s.text||"").replace(/</g,"&lt;")}</p></div><button onclick="gAddSug(${s.i})" style="align-self:center;background:none;border:1px solid var(--acc);color:var(--acc);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;white-space:nowrap">+ adicionar</button></div>`).join("") : `<div class="empty">Sem sugestões novas — ou as IAs ainda não rodaram, ou você já levou tudo pro quadro. 👏</div>`;
+  h+= sug.length? sug.map(s=>`<div class="rec"><div class="ic">💡</div><div style="flex:1"><h4 style="margin:0"><span class="tag">${s.src}</span></h4><p style="margin-top:3px">${(s.text||"").replace(/</g,"&lt;")}</p></div><button onclick="gAddSug(${s.i})" style="align-self:center;background:none;border:1px solid var(--acc);color:var(--acc);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;white-space:nowrap">+ adicionar</button></div>`).join("") : `<div class="empty">Sem sugestões novas${gFilter!=="tudo"?" nesta frente":""} — ou as IAs ainda não rodaram, ou você já levou tudo pro quadro. 👏</div>`;
   host.innerHTML=h;
 }
 function renderRecs(){const recs=[],m=STATE.media,bt=groupBy(m,"type");
