@@ -717,6 +717,37 @@ function adsOrigem(a){
   if(a.igMediaId) return `<span class="tag" style="border-color:var(--acc);color:var(--acc)" title="Impulsiona um post do feed">🔼 post do feed</span>`;
   return `<span class="tag" style="opacity:.6" title="Criativo feito só para o anúncio">criativo de anúncio</span>`;
 }
+/* ===== Custo por seguidor (medido pela Meta, ou estimado pelo histórico) ===== */
+function fcShell(kpis,nota,est){
+  const cor=est?"#f1c40f":"#2ecc71",sel=est?'<span class="tag" style="border-color:#f1c40f;color:#f1c40f">estimativa</span>':'<span class="tag" style="border-color:#2ecc71;color:#2ecc71">medido pela Meta</span>';
+  return `<div class="sectitle">👥 Custo por seguidor ${sel}</div>`+
+    `<div class="grid kpis">${kpis.map(x=>`<div class="card kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div></div>`).join("")}</div>`+
+    `<div class="card" style="border-color:${cor}"><p style="font-size:13px;line-height:1.55;margin:0">${nota}</p></div>`;
+}
+function followerCostCard(A){
+  const p=A.periods&&A.periods[adsW]; if(!p) return "";
+  const spend=p.spend||0; if(spend<=0) return "";
+  // Caso 1 (preciso): a Meta reporta seguidor como resultado da campanha.
+  const fk=Object.keys(p.actions||{}).find(k=>/follow/i.test(k));
+  if(fk && p.actions[fk]>0){
+    const n=p.actions[fk], cpf=(p.cpa&&p.cpa[fk]!=null)?p.cpa[fk]:spend/n;
+    return fcShell([["Gasto · "+adsW+"D",money(spend)],["Seguidores (medido)",fmt(n)],["Custo / seguidor",money(cpf)]],
+      `A campanha reporta seguidor como resultado, então este é o <b>custo real medido pela Meta</b> na janela de ${adsW} dias — número cravado, não estimativa.`,false);
+  }
+  // Caso 2 (estimativa): gasto ÷ ganho líquido de seguidores no histórico.
+  const hist=histArr();
+  const curF=(STATE.profile&&STATE.profile.followers_count)||(hist.length?hist[hist.length-1].followers:0);
+  if(!hist.length||!curF) return fcShell([["Gasto · "+adsW+"D",money(spend)]],
+    `Ainda não tenho histórico de seguidores suficiente pra estimar. O painel registra os seguidores a cada rodada do robô — em alguns dias o card calcula sozinho.`,true);
+  const today=new Date(), cutoff=new Date(today.getTime()-adsW*864e5);
+  let base=null; for(const x of hist){ if(new Date(x.date)<=cutoff) base=x; }
+  if(!base) base=hist[0];
+  const dias=Math.max(1,Math.round((today-new Date(base.date))/864e5)), ganho=curF-base.followers, novo=dias<7;
+  if(ganho<=0) return fcShell([["Gasto · "+adsW+"D",money(spend)],["Seguidores (líq. "+dias+"d)",fmt(ganho)],["Custo / seguidor","—"]],
+    `Nos últimos ${dias} dia(s) o saldo de seguidores foi <b>${fmt(ganho)}</b> — sem ganho líquido, não há custo por seguidor a calcular. Isso já é um sinal: gastou ${money(spend)} e os seguidores não subiram no líquido (pode haver unfollows ou o ganho ainda não entrou). ${novo?'<b>Campanha nova — ainda em aprendizado.</b>':''}`,true);
+  return fcShell([["Gasto · "+adsW+"D",money(spend)],["Seguidores ganhos ("+dias+"d)",fmt(ganho)],["Custo estimado / seguidor",money(spend/ganho)]],
+    `<b>ESTIMATIVA</b> = gasto ÷ ganho líquido de seguidores nos últimos ${dias} dia(s). <b>Mistura o orgânico</b> (posts e reels também trazem seguidor), então o custo real só do pago pode ser maior. ${novo?'<b>Campanha nova, ainda em aprendizado</b> — número preliminar, tende a melhorar nos próximos dias. Para uma campanha recém-iniciada, use o período <b>7D</b>. ':''}A Meta não reporta seguidor do Instagram como resultado nativo — por isso é estimativa, não número cravado.`,true);
+}
 function renderAds(){
   const host=$("#adsBody");if(!host)return;const A=B.ads;
   document.querySelectorAll("#adsBar [data-aw]").forEach(b=>b.classList.toggle("active",+b.dataset.aw===adsW));
@@ -727,6 +758,7 @@ function renderAds(){
    ["Frequência",p.frequency?p.frequency.toFixed(2):"—"],["Cliques",fmt(p.clicks)],["CTR",p.ctr?pct(p.ctr):"—"],["CPM",money(p.cpm)]];
   let h=adsAIBlock(A.ai);
   h+=`<div class="grid kpis">${kpis.map(x=>`<div class="card kpi"><div class="lbl">${x[0]} · ${adsW}D</div><div class="val">${x[1]}</div></div>`).join("")}</div>`;
+  h+=followerCostCard(A);
   h+=renderCampaigns(A);
   const acts=Object.entries(p.actions||{}).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   if(acts.length){
