@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       transcribe_actor:
-        description: "ID do ator de transcrição da Apify Store (formato usuario~ator). Ex.: busque 'instagram transcript' ou 'whisper'."
+        description: "ID do ator de transcrição (formato usuario~ator). Já vem com o apple_yang~instagram-transcripts-scraper."
         required: true
-        default: ""
+        default: "apple_yang~instagram-transcripts-scraper"
       reel_urls:
         description: "Opcional: lista de URLs em JSON (ex.: [\"https://instagram.com/p/AAA/\"]). Vazio = os 10 parceiros do script."
         required: false
