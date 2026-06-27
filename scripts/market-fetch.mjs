@@ -98,11 +98,11 @@ function summarize(handle,posts,kind){
   let cadenceDays=null;
   if(ts.length>=2){ const span=(new Date(ts[ts.length-1])-new Date(ts[0]))/864e5; cadenceDays=Math.round((span/(ts.length-1))*10)/10; }
   const top=posts.slice().sort((a,b)=>(b.likes+b.comments*3)-(a.likes+a.comments*3)).slice(0,3)
-    .map(p=>({texto:(p.text||"").slice(0,160),likes:p.likes,comentarios:p.comments,views:p.views||null,url:p.url}));
+    .map(p=>({texto:(p.text||"").slice(0,2200),likes:p.likes,comentarios:p.comments,views:p.views||null,url:p.url}));
   return {handle,kind,posts:posts.length,seguidores:posts[0].followers||null,
     media_likes:avg(likes),media_comentarios:avg(comments),media_views:views.length?avg(views):null,
     cadencia_dias:cadenceDays,temas:topThemes(posts.map(p=>p.text)),top_posts:top,
-    _posts:posts.map(p=>({texto:(p.text||"").slice(0,260),likes:p.likes,comments:p.comments,views:p.views||null,ts:p.ts,url:p.url,img:p.img||null,followers:posts[0].followers||null}))};
+    _posts:posts.map(p=>({texto:(p.text||"").slice(0,2200),likes:p.likes,comments:p.comments,views:p.views||null,ts:p.ts,url:p.url,img:p.img||null,followers:posts[0].followers||null}))};
 }
 async function scrapeInstagram(handles,actor,limit){
   if(!handles.length) return [];
@@ -286,7 +286,7 @@ function writeVaultDoc(bundle){
         const met=[`❤ ${nf(d.likes)}`,`💬 ${nf(d.comments)}`]; if(d.views)met.push(`▶ ${nf(d.views)}`); if(d.engaj_pct!=null)met.push(`📊 ${d.engaj_pct}% eng.`);
         const dt=d.ts?` · ${new Date(d.ts).toLocaleDateString("pt-BR")}`:"";
         L.push(`\n**${i+1}.** ${met.join(" · ")}${dt}${d.url?` · [ver post](${d.url})`:""}`);
-        if(d.texto) L.push(`> ${String(d.texto).replace(/\n/g," ").slice(0,400)}`);
+        if(d.texto) L.push(`> ${String(d.texto).replace(/\n+/g," ").trim()}`);
         L.push(`- **Por que performou:** ${d.porque||"— (análise não gerada nesta rodada)"}`);
         L.push(`- **Lição p/ aplicar:** ${d.licao||"—"}`);
       });
