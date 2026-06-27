@@ -71,6 +71,7 @@ const shortcode = u => (String(u).match(/\/(?:p|reel|reels|tv)\/([^/?#]+)/) || [
 const DIAG = [];
 async function transcribeBatch(urls) {
   const shapes = [
+    ["videoUrls", u => ({ videoUrls: u })],
     ["urls", u => ({ urls: u })],
     ["startUrls", u => ({ startUrls: u.map(x => ({ url: x })) })],
     ["directUrls", u => ({ directUrls: u })],
