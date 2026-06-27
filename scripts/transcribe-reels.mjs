@@ -73,27 +73,36 @@ async function transcribeOne(u) {
   return { it, text };
 }
 
+const hasFala = r => r && r.transcricao && !r.transcricao.startsWith("[");
+
 (async () => {
+  // ACUMULA entre rodadas (ator é instável): carrega o que já temos e só rebusca o que falta.
+  const DATA_FILE = path.join(OUT_DIR, "_transcribe-data.json");
+  const store = {};
+  try { JSON.parse(fs.readFileSync(DATA_FILE, "utf8")).forEach(r => { store[r.url] = r; }); } catch {}
+
   const out = [];
   for (let i = 0; i < URLS.length; i++) {
     const u = URLS[i];
+    const prev = store[u] || { url: u, owner: "", caption: "", transcricao: "" };
     process.stdout.write(`(${i + 1}/${URLS.length}) ${u} … `);
-    const row = { url: u, owner: "", caption: "", transcricao: "" };
+    if (hasFala(prev)) { console.log("já tinha fala — mantém"); out.push(prev); continue; }
+    const row = { url: u, owner: prev.owner || "", caption: prev.caption || "", transcricao: prev.transcricao || "" };
     try {
       const { it, text } = await transcribeOne(u);
-      row.caption = fullCaption(it);
-      row.owner = owner(it);
+      const cap = fullCaption(it); if (cap.length > (row.caption || "").length) row.caption = cap;
+      if (owner(it)) row.owner = owner(it);
       if (text) row.transcricao = text;
-      else if (!hasAudio(it)) row.transcricao = "[post sem áudio (imagem/carrossel) — use a legenda completa acima como copy]";
-      else row.transcricao = "[vídeo sem transcrição retornada — tente rodar de novo]";
-      console.log(text ? `ok (${text.length} chars)` : (hasAudio(it) ? "vídeo sem texto" : "sem áudio"));
+      else if (!row.transcricao) row.transcricao = hasAudio(it) ? "[fala não capturada — ator instável; rode de novo pra tentar]" : "[post sem áudio (imagem/carrossel) — use a legenda completa acima]";
+      console.log(text ? `ok (${text.length} chars)` : (row.caption ? "só legenda" : "vazio"));
     } catch (e) {
-      row.transcricao = `[falha: ${e.message}]`;
+      if (!row.transcricao) row.transcricao = `[falha: ${e.message}]`;
       DIAG.push({ url: u, erro: String(e.message).slice(0, 300) });
       console.log(`falha: ${e.message}`);
     }
-    out.push(row);
+    store[u] = row; out.push(row);
   }
+  try { fs.writeFileSync(DATA_FILE, JSON.stringify(URLS.map(u => store[u]).filter(Boolean), null, 2)); } catch {}
 
   const okFala = out.filter(o => o.transcricao && !o.transcricao.startsWith("[")).length;
   const comLegenda = out.filter(o => o.caption).length;
