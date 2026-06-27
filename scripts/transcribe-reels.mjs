@@ -4,15 +4,12 @@
  * Isolado: não importa nem altera o robô de mercado. Não mexe em nenhum
  * ator/tarefa existente — só faz chamadas novas com o mesmo token.
  *
- * O ator apple_yang~instagram-transcripts-scraper espera UMA URL por execução,
- * no campo singular `videoUrl`. Então chamamos uma URL de cada vez.
+ * O ator apple_yang~instagram-transcripts-scraper espera UMA URL por execução
+ * no campo `videoUrl`. Ele devolve a legenda completa em `title`, a fala em
+ * `text`/`segments`, e `audioUrl`/`videoUrl`. Posts sem áudio (imagem/carrossel)
+ * voltam sem fala — aí guardamos só a legenda.
  *
- * Requer:  APIFY_TOKEN
- * Opcionais:
- *   TRANSCRIBE_ACTOR  default apple_yang~instagram-transcripts-scraper
- *   REEL_URLS         JSON array de URLs (vazio = os 10 parceiros padrão)
- *   LANG2 / LANG      idioma (default "pt")
- *   VAULT_DIR         pasta do vault pra salvar o .md (senão salva ao lado)
+ * Requer: APIFY_TOKEN. Opcionais: TRANSCRIBE_ACTOR, REEL_URLS (JSON), LANG, VAULT_DIR.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -45,25 +42,34 @@ async function apifyRun(actor, input, timeoutS = 600) {
   return Array.isArray(j) ? j : (j.items || []);
 }
 
-// lê o texto da transcrição de qualquer formato comum de saída
 function extractText(it) {
   if (!it || typeof it !== "object") return "";
-  const direct = it.text || it.transcript || it.transcription || it.transcriptText || it.captions || it.caption || it.subtitle || it.subtitles;
+  const direct = it.text || it.transcript || it.transcription || it.transcriptText;
   if (typeof direct === "string" && direct.trim()) return direct.trim();
-  const arr = it.segments || it.transcripts || it.results || it.chunks;
-  if (Array.isArray(arr)) { const t = arr.map(s => (typeof s === "string" ? s : (s?.text || s?.transcript || ""))).join(" ").trim(); if (t) return t; }
+  const arr = it.segments || it.transcripts;
+  if (Array.isArray(arr) && arr.length) { const t = arr.map(s => (typeof s === "string" ? s : (s?.text || ""))).join(" ").trim(); if (t) return t; }
   return "";
 }
-function owner(it) { return it?.ownerUsername || it?.ownerUserName || it?.username || it?.author || ""; }
-function metaCaption(it) { return it?.postCaption || it?.description || ""; }
+const fullCaption = it => (it?.title || it?.postCaption || it?.caption || it?.description || "").trim();
+const owner = it => it?.userName || it?.ownerUsername || it?.username || "";
+const hasAudio = it => !!(it?.audioUrl || it?.videoUrl);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function callActor(u) { return (await apifyRun(TRANSCRIBE_ACTOR, { videoUrl: u, url: u, language: LANG }))[0] || {}; }
 
 const DIAG = [];
 async function transcribeOne(u) {
-  // o ator quer videoUrl no singular; mandamos também url como redundância inofensiva
-  const items = await apifyRun(TRANSCRIBE_ACTOR, { videoUrl: u, url: u, language: LANG });
-  const it = items[0] || {};
-  const text = extractText(it);
-  if (!text && (items.length)) DIAG.push({ url: u, itens: items.length, amostra: JSON.stringify(it).slice(0, 1500) });
+  let it = await callActor(u);
+  let text = extractText(it);
+  // vídeo longo às vezes volta sem texto na 1ª; tenta mais 2x com folga
+  for (let k = 0; k < 2 && !text && hasAudio(it); k++) {
+    await sleep(5000);
+    const it2 = await callActor(u);
+    const t2 = extractText(it2);
+    if (Object.keys(it2).length) it = it2;
+    if (t2) { text = t2; break; }
+  }
+  if (!text && hasAudio(it)) DIAG.push({ url: u, motivo: "vídeo com áudio mas sem texto após retentativas", amostra: JSON.stringify(it).slice(0, 800) });
   return { it, text };
 }
 
@@ -72,13 +78,15 @@ async function transcribeOne(u) {
   for (let i = 0; i < URLS.length; i++) {
     const u = URLS[i];
     process.stdout.write(`(${i + 1}/${URLS.length}) ${u} … `);
-    let row = { url: u, owner: "", caption: "", transcricao: "" };
+    const row = { url: u, owner: "", caption: "", transcricao: "" };
     try {
       const { it, text } = await transcribeOne(u);
-      row.transcricao = text || "[vazio — ver diagnóstico]";
+      row.caption = fullCaption(it);
       row.owner = owner(it);
-      row.caption = metaCaption(it);
-      console.log(text ? `ok (${text.length} chars)` : "vazio");
+      if (text) row.transcricao = text;
+      else if (!hasAudio(it)) row.transcricao = "[post sem áudio (imagem/carrossel) — use a legenda completa acima como copy]";
+      else row.transcricao = "[vídeo sem transcrição retornada — tente rodar de novo]";
+      console.log(text ? `ok (${text.length} chars)` : (hasAudio(it) ? "vídeo sem texto" : "sem áudio"));
     } catch (e) {
       row.transcricao = `[falha: ${e.message}]`;
       DIAG.push({ url: u, erro: String(e.message).slice(0, 300) });
@@ -87,21 +95,21 @@ async function transcribeOne(u) {
     out.push(row);
   }
 
-  const ok = out.filter(o => o.transcricao && !o.transcricao.startsWith("[")).length;
+  const okFala = out.filter(o => o.transcricao && !o.transcricao.startsWith("[")).length;
+  const comLegenda = out.filter(o => o.caption).length;
   const L = [];
   L.push(`---\ntags: [instagram, transcricoes, referencias, carrossel, ednaldo-henper]\ntipo: transcricoes\ngerado: ${new Date().toISOString().slice(0, 10)}\n---\n`);
   L.push(`# 🎙️ Transcrições — Fala dos Reels de Referência\n`);
-  L.push(`> Transcrição automática (Apify · ${TRANSCRIBE_ACTOR}) da FALA dos vídeos. Copy-base para carrossel. Confira nomes próprios e números antes de publicar. ${ok}/${out.length} transcritos.\n`);
+  L.push(`> Apify · ${TRANSCRIBE_ACTOR}. ${okFala}/${out.length} com fala transcrita · ${comLegenda}/${out.length} com legenda completa. Posts de imagem/carrossel não têm fala — use a legenda. Confira nomes próprios e números.\n`);
   out.forEach((o, i) => {
     L.push(`\n## ${i + 1}. @${o.owner || "?"} · [ver post](${o.url})`);
-    if (o.caption) L.push(`**Legenda:** ${String(o.caption).replace(/\n+/g, " ").trim()}`);
-    L.push(`\n**Fala (transcrição):**`);
-    L.push(`> ${String(o.transcricao || "[vazio]").replace(/\n+/g, "\n> ")}`);
+    if (o.caption) L.push(`\n**Legenda completa:**\n> ${String(o.caption).replace(/\n+/g, "\n> ")}`);
+    L.push(`\n**Fala (transcrição):**\n> ${String(o.transcricao || "[vazio]").replace(/\n+/g, "\n> ")}`);
   });
-  if (ok < out.length) L.push(`\n---\n> ⚠️ ${out.length - ok} item(ns) sem transcrição. Diagnóstico em \`_debug-transcribe.json\`.`);
+  if (DIAG.length) L.push(`\n---\n> ⚠️ ${DIAG.length} item(ns) precisaram de atenção — ver \`_debug-transcribe.json\`.`);
   fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(path.join(OUT_DIR, "Transcrições — Referências (carrossel).md"), L.join("\n"));
   if (DIAG.length) { try { fs.writeFileSync(path.join(OUT_DIR, "_debug-transcribe.json"), JSON.stringify(DIAG, null, 2)); } catch {} }
   else { try { fs.rmSync(path.join(OUT_DIR, "_debug-transcribe.json")); } catch {} }
-  console.log(`\nSalvo (${ok}/${out.length} transcritos).`);
+  console.log(`\nSalvo: ${okFala}/${out.length} com fala, ${comLegenda}/${out.length} com legenda.`);
 })();
