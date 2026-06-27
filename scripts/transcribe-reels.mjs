@@ -104,16 +104,15 @@ const hasFala = r => r && r.transcricao && !r.transcricao.startsWith("[");
   }
   try { fs.writeFileSync(DATA_FILE, JSON.stringify(URLS.map(u => store[u]).filter(Boolean), null, 2)); } catch {}
 
-  const okFala = out.filter(o => o.transcricao && !o.transcricao.startsWith("[")).length;
-  const comLegenda = out.filter(o => o.caption).length;
+  // Só entram no arquivo os que foram transcritos 100% (fala real).
+  const done = out.filter(hasFala);
   const L = [];
   L.push(`---\ntags: [instagram, transcricoes, referencias, carrossel, ednaldo-henper]\ntipo: transcricoes\ngerado: ${new Date().toISOString().slice(0, 10)}\n---\n`);
   L.push(`# 🎙️ Transcrições — Fala dos Reels de Referência\n`);
-  L.push(`> Apify · ${TRANSCRIBE_ACTOR}. ${okFala}/${out.length} com fala transcrita · ${comLegenda}/${out.length} com legenda completa. Posts de imagem/carrossel não têm fala — use a legenda. Confira nomes próprios e números.\n`);
-  out.forEach((o, i) => {
-    L.push(`\n## ${i + 1}. @${o.owner || "?"} · [ver post](${o.url})`);
-    if (o.caption) L.push(`\n**Legenda completa:**\n> ${String(o.caption).replace(/\n+/g, "\n> ")}`);
-    L.push(`\n**Fala (transcrição):**\n> ${String(o.transcricao || "[vazio]").replace(/\n+/g, "\n> ")}`);
+  L.push(`> Apenas os Reels com fala transcrita 100% (${done.length} de ${out.length}). Confira nomes próprios e números antes de usar.\n`);
+  done.forEach((o, i) => {
+    L.push(`\n---\n\n## ${i + 1}. @${o.owner || "?"} · [ver post](${o.url})\n`);
+    L.push(`> ${String(o.transcricao).replace(/\n+/g, "\n> ")}`);
   });
   if (DIAG.length) L.push(`\n---\n> ⚠️ ${DIAG.length} item(ns) precisaram de atenção — ver \`_debug-transcribe.json\`.`);
   fs.mkdirSync(OUT_DIR, { recursive: true });
