@@ -66,20 +66,26 @@ function owner(it) { return it?.ownerUsername || it?.ownerUserName || it?.userna
 function caption(it) { return it?.caption || it?.description || it?.postCaption || ""; }
 const shortcode = u => (String(u).match(/\/(?:p|reel|reels|tv)\/([^/?#]+)/) || [])[1] || "";
 
-// Modo DIRECT: manda as URLs direto pro ator de transcrição, tentando formatos comuns
+// Modo DIRECT: manda as URLs direto pro ator de transcrição, tentando formatos comuns.
+// Registra um diagnóstico (DIAG) de cada tentativa pra eu acertar o mapeamento sem ver o schema.
+const DIAG = [];
 async function transcribeBatch(urls) {
   const shapes = [
-    u => ({ urls: u }),
-    u => ({ startUrls: u.map(x => ({ url: x })) }),
-    u => ({ directUrls: u }),
-    u => ({ postUrls: u }),
-    u => ({ links: u }),
+    ["urls", u => ({ urls: u })],
+    ["startUrls", u => ({ startUrls: u.map(x => ({ url: x })) })],
+    ["directUrls", u => ({ directUrls: u })],
+    ["postUrls", u => ({ postUrls: u })],
+    ["instagramUrls", u => ({ instagramUrls: u })],
+    ["reels", u => ({ reels: u })],
+    ["links", u => ({ links: u })],
   ];
-  for (const make of shapes) {
+  for (const [name, make] of shapes) {
     try {
       const items = await apifyRun(TRANSCRIBE_ACTOR, { ...make(urls), language: LANG });
-      if (items.length && items.some(extractText)) return items;
-    } catch (e) { /* tenta o próximo formato */ }
+      const got = items.some(extractText);
+      DIAG.push({ shape: name, items: items.length, extraiu: got, amostra: items[0] ? JSON.stringify(items[0]).slice(0, 1200) : null });
+      if (items.length && got) return items;
+    } catch (e) { DIAG.push({ shape: name, erro: String(e.message).slice(0, 200) }); }
   }
   return [];
 }
@@ -134,8 +140,9 @@ async function transcribeOne(videoUrl) {
     L.push(`\n**Fala (transcrição):**`);
     L.push(`> ${String(o.transcricao || "[vazio — ver aviso no rodapé]").replace(/\n+/g, "\n> ")}`);
   });
-  if (ok < out.length) L.push(`\n---\n> ⚠️ ${out.length - ok} item(ns) sem transcrição. Se vier tudo vazio, o ator usa um formato de entrada/saída diferente — me mande o "Example input" da aba Input do ator que eu acerto o mapeamento.`);
+  if (ok < out.length) L.push(`\n---\n> ⚠️ ${out.length - ok} item(ns) sem transcrição. Foi gravado um diagnóstico em \`_debug-transcribe.json\` (na mesma pasta) com o que o ator devolveu — é o que destrava o ajuste.`);
   fs.mkdirSync(OUT_DIR, { recursive: true });
+  if (ok < out.length && DIAG.length) { try { fs.writeFileSync(path.join(OUT_DIR, "_debug-transcribe.json"), JSON.stringify(DIAG, null, 2)); console.log("Diagnóstico salvo em _debug-transcribe.json"); } catch {} }
   const file = path.join(OUT_DIR, "Transcrições — Referências (carrossel).md");
   fs.writeFileSync(file, L.join("\n"));
   console.log(`\nSalvo: ${file} (${ok}/${out.length} transcritos)`);
