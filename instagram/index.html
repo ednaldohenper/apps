@@ -501,18 +501,28 @@ function gestaoSugestoes(){
   if(typeof MKT!=="undefined"&&MKT&&MKT.ai){(MKT.ai.oportunidades||[]).forEach(x=>S.push(["🔭 Mercado",(x.titulo?x.titulo+" — ":"")+(x.texto||"")]));(MKT.ai.angulos||[]).forEach(x=>S.push(["✍️ Ângulo",x]));}
   return S.map(([src,text])=>({src,text:String(text||"").trim()})).filter(x=>x.text.length>3);
 }
-function gTaskCard(t){
+const GSTRANK={todo:0,doing:1,done:2};
+function gTaskRow(t){
   const inS="padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--txt);font-size:12px";
   const opt=(v,l)=>`<option value="${v}"${t.status===v?" selected":""}>${l}</option>`;
   const over=t.due&&t.status!=="done"&&t.due<new Date().toISOString().slice(0,10);
-  return `<div class="card" style="margin:0 0 10px"><div style="font-size:11px;color:var(--mut);margin-bottom:3px">${t.src}</div>`+
-    `<div style="font-size:14px;line-height:1.45;margin-bottom:8px">${(t.text||"").replace(/</g,"&lt;")}</div>`+
-    `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">`+
-    `<input value="${escA(t.owner)}" onchange="gSet('${t.id}','owner',this.value)" placeholder="👤 responsável" style="${inS};width:120px">`+
-    `<input type="date" value="${t.due||""}" onchange="gSet('${t.id}','due',this.value)" style="${inS}${over?';border-color:#ff5c7a;color:#ff5c7a':''}">`+
-    `<select onchange="gSet('${t.id}','status',this.value)" style="${inS}">${opt("todo","🟡 A fazer")}${opt("doing","🔵 Fazendo")}${opt("done","🟢 Feito")}</select>`+
-    `<button onclick="gDel('${t.id}')" title="Remover" style="margin-left:auto;background:none;border:0;cursor:pointer;font-size:15px;opacity:.6">🗑️</button>`+
-    `</div></div>`;
+  return `<tr>`+
+    `<td><div style="font-size:10px;color:var(--mut);margin-bottom:2px">${t.src}</div><div style="font-size:13px;line-height:1.4">${(t.text||"").replace(/</g,"&lt;")}</div></td>`+
+    `<td style="min-width:110px"><input value="${escA(t.owner)}" onchange="gSet('${t.id}','owner',this.value)" placeholder="—" style="${inS};width:100%"></td>`+
+    `<td style="white-space:nowrap"><input type="date" value="${t.due||""}" onchange="gSet('${t.id}','due',this.value)" style="${inS};width:auto${over?';border-color:#ff5c7a;color:#ff5c7a':''}"></td>`+
+    `<td><select onchange="gSet('${t.id}','status',this.value)" style="${inS}">${opt("todo","🟡 A fazer")}${opt("doing","🔵 Fazendo")}${opt("done","🟢 Feito")}</select></td>`+
+    `<td style="text-align:center"><button onclick="gDel('${t.id}')" title="Remover" style="background:none;border:0;cursor:pointer;font-size:15px;opacity:.55">🗑️</button></td>`+
+  `</tr>`;
+}
+function gSorted(){return gLoad().filter(t=>gVisible(t.src)).sort((a,b)=>(GSTRANK[a.status]-GSTRANK[b.status])||((a.due||"~").localeCompare(b.due||"~")));}
+function gExport(){
+  const items=gSorted();if(!items.length){if(typeof toast==="function")toast("Nada pra exportar");return;}
+  const ST={todo:"A fazer",doing:"Fazendo",done:"Feito"};
+  const esc=v=>`"${String(v==null?"":v).replace(/"/g,'""')}"`;
+  const rows=[["Tarefa","Frente","Responsável","Prazo","Status"]].concat(items.map(t=>[t.text,t.src,t.owner,t.due,ST[t.status]||t.status]));
+  const csv="﻿"+rows.map(r=>r.map(esc).join(";")).join("\r\n"); // ; + BOM = abre certo no Excel/Sheets pt-BR
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download="acoes-"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 let gFilter="tudo";
 const GFRENTES=[["tudo","Tudo"],["conteudo","📝 Conteúdo"],["trafego","💸 Tráfego"],["multicanal","🌐 Multicanal"],["mercado","🔭 Mercado"]];
@@ -530,13 +540,14 @@ function renderGestao(){
   const board=gLoad();
   let h=`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="gNew" placeholder="Escreva uma ação manual e adicione ao quadro…" onkeydown="if(event.key==='Enter')gAddManual()" style="flex:1;min-width:200px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--txt);font-size:14px"><button onclick="gAddManual()" style="background:var(--acc);color:#fff;border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer">+ Adicionar</button></div></div>`;
   h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">`+GFRENTES.map(([k,l])=>{const n=k==="tudo"?board.length:board.filter(t=>gFrente(t.src)===k).length;return `<button onclick="gSetFilter('${k}')" style="cursor:pointer;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid ${gFilter===k?'var(--acc)':'var(--line)'};color:${gFilter===k?'var(--acc)':'var(--mut)'};background:${gFilter===k?'rgba(124,92,255,.10)':'transparent'}">${l}${n?` <b>${n}</b>`:""}</button>`;}).join("")+`</div>`;
-  const cols=[["todo","🟡 A fazer"],["doing","🔵 Fazendo"],["done","🟢 Feito"]];
-  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;align-items:start">`;
-  for(const [st,label] of cols){
-    const items=board.filter(t=>t.status===st&&gVisible(t.src)).sort((a,b)=>(a.due||"~").localeCompare(b.due||"~"));
-    h+=`<div><div class="sectitle" style="margin-top:0">${label} <span class="tag">${items.length}</span></div>${items.map(gTaskCard).join("")||`<div class="empty" style="padding:16px;font-size:13px">Nada aqui ainda.</div>`}</div>`;
-  }
-  h+=`</div>`;
+  const items=gSorted();
+  const c={todo:0,doing:0,done:0};items.forEach(t=>c[t.status]=(c[t.status]||0)+1);
+  h+=`<div class="sectitle" style="margin-top:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">📋 Tarefas`+
+    `<span class="tag">🟡 ${c.todo} a fazer</span><span class="tag">🔵 ${c.doing} fazendo</span><span class="tag">🟢 ${c.done} feito</span>`+
+    `<button onclick="gExport()" style="margin-left:auto;background:none;border:1px solid var(--acc);color:var(--acc);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600">⬇ Exportar (CSV)</button></div>`;
+  h+= items.length
+    ? `<div class="card" style="overflow-x:auto;padding:0"><table class="ctbl" style="margin:0"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Status</th><th></th></tr></thead><tbody>${items.map(gTaskRow).join("")}</tbody></table></div>`
+    : `<div class="empty" style="padding:18px">Nenhuma tarefa${gFilter!=="tudo"?" nesta frente":""}. Adicione uma ação acima ou puxe das sugestões abaixo.</div>`;
   GSUG=gestaoSugestoes();const ids=new Set(board.map(t=>t.id));
   const sug=GSUG.map((s,i)=>({...s,i})).filter(s=>!ids.has(gid(s.src,s.text))&&gVisible(s.src));
   h+=`<div class="sectitle">💡 Sugestões da IA <span class="tag">${sug.length}</span>${gFilter!=="tudo"?` <span class="tag" style="opacity:.7">filtro: ${(GFRENTES.find(f=>f[0]===gFilter)||[])[1]||""}</span>`:""}</div>`;
