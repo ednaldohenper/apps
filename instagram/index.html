@@ -34,8 +34,7 @@
     #app{display:grid;grid-template-columns:214px 1fr;column-gap:30px;align-items:start}
     #app>header{grid-column:1/-1}
     nav.tabs{grid-column:1;display:flex;flex-direction:column;align-items:stretch;gap:3px;flex-wrap:nowrap;margin:0;border:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:14px;background:var(--bg2);padding:14px 10px;position:sticky;top:18px;align-self:start}
-    #app>.pbar{grid-column:2}
-    #app>section{grid-column:2}
+    #app>.main{grid-column:2;min-width:0}
     .zone{align-self:stretch;border-left:0;margin:16px 6px 4px;padding:0;opacity:.85}
     .zone.first{margin-top:2px}
     .tab{border-bottom:0;border-radius:9px;padding:9px 12px;margin:0}
@@ -138,6 +137,7 @@
     <div class="tab" data-t="acoes">Ações</div>
   </nav>
 
+  <main class="main">
   <div class="pbar" id="periodBar">
     <span class="pbar-lbl">Período</span>
     <button class="pbtn" data-days="7" onclick="setPreset(7)">7D</button>
@@ -277,6 +277,7 @@
     </tr></thead><tbody id="histBody"></tbody></table></div>
   </section>
   <div class="foot" id="foot">—</div>
+  </main>
 </div>
 </div>
 <div id="toast" class="toast"></div>
