@@ -423,7 +423,7 @@ function renderKPIs(){const p=STATE.profile,h=histArr();const prev=h.length>1?h[
 
 function renderGrowth(){const h=histArr();$("#growthTag").textContent=`${h.length} dia(s)`;
   if(h.length<2){$("#growthChart").innerHTML=`<div class="empty">O gráfico aparece a partir do 2º dia coletado pelo robô.</div>`;return;}
-  const v=h.map(x=>x.followers),l=h.map(x=>x.date.slice(5));$("#growthChart").innerHTML=spark(v,l,"seguidores");}
+  const v=h.map(x=>x.followers),l=h.map(x=>x.date.slice(5));$("#growthChart").innerHTML=iChart(v,l,fmt,{area:true});}
 function spark(v,l,u){const w=900,ht=120,pad=24,mn=Math.min(...v),mx=Math.max(...v),rng=mx-mn||1;
   const x=i=>pad+i*(w-2*pad)/(v.length-1||1),y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
   const pts=v.map((q,i)=>`${x(i)},${y(q)}`).join(" ");const area=`${pad},${ht-pad} ${pts} ${x(v.length-1)},${ht-pad}`;
@@ -440,6 +440,42 @@ function kpiSpark(series,key,fmtFn){
   const tip=v.map((q,i)=>`<circle cx="${x(i)}" cy="${y(q)}" r="8" fill="transparent"><title>${lab[i]} · ${f(q)}</title></circle>`).join("");
   return `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" style="width:100%;height:42px;margin:6px 0 3px"><polyline points="${pts}" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linejoin="round"/><circle cx="${x(li)}" cy="${y(v[li])}" r="3" fill="#7c5cff"/>${tip}</svg>`+
     `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);gap:6px"><span>${lab[0]}→${lab[li]}</span><span>mín ${f(mn)} · máx ${f(mx)}</span></div>`;}
+/* ===== Gráfico de linha INTERATIVO: hover no ponto mostra data · valor ===== */
+let CHARTID=0; const ICHARTS={}; let ICACTIVE=null;
+function iChart(v,lab,fmtFn,opts){
+  opts=opts||{};const f=fmtFn||fmt;
+  if(!v||v.length<2) return `<div class="empty" style="font-size:12px;padding:12px">sem série suficiente pra linha (≥2 pontos)</div>`;
+  const w=600,ht=100,pad=8,mn=Math.min(...v),mx=Math.max(...v),rng=mx-mn||1;
+  const X=i=>pad+i*(w-2*pad)/(v.length-1||1),Y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
+  const pts=v.map((q,i)=>`${X(i)},${Y(q)}`).join(" ");
+  const id="ic"+(++CHARTID);ICHARTS[id]={v,lab,f,X,Y,w,n:v.length};
+  const area=opts.area?`<defs><linearGradient id="${id}g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7c5cff" stop-opacity=".30"/><stop offset="1" stop-color="#7c5cff" stop-opacity="0"/></linearGradient></defs><polygon points="${pad},${ht-pad} ${pts} ${X(v.length-1)},${ht-pad}" fill="url(#${id}g)"/>`:"";
+  const svgh=opts.svgh||(opts.area?130:46);
+  return `<div class="ichart" data-id="${id}" style="position:relative">`+
+    `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" style="width:100%;height:${svgh}px;display:block;overflow:visible"><rect x="0" y="0" width="${w}" height="${ht}" fill="transparent"/>${area}`+
+    `<polyline points="${pts}" fill="none" stroke="#7c5cff" stroke-width="${opts.area?2.5:2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`+
+    `<line class="ic-vline" y1="0" y2="${ht}" stroke="#7c5cff" stroke-opacity=".45" stroke-width="1" vector-effect="non-scaling-stroke" style="display:none"/>`+
+    `<circle class="ic-dot" r="4" fill="#7c5cff" stroke="#0b0d12" stroke-width="1.5" style="display:none"/></svg>`+
+    `<div class="ic-tip" style="position:absolute;display:none;pointer-events:none;background:var(--card2);border:1px solid var(--acc);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;color:var(--txt);white-space:nowrap;transform:translateX(-50%);top:-6px;z-index:6;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>`+
+    `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:3px"><span>${lab[0]}→${lab[v.length-1]}</span><span>mín ${f(mn)} · máx ${f(mx)}</span></div>`+
+    `</div>`;
+}
+function icHide(cont){if(!cont)return;["ic-dot","ic-vline","ic-tip"].forEach(cl=>{const el=cont.querySelector("."+cl);if(el)el.style.display="none";});}
+function icMove(e){
+  const cont=e.target.closest&&e.target.closest(".ichart");
+  if(!cont){if(ICACTIVE){icHide(ICACTIVE);ICACTIVE=null;}return;}
+  if(ICACTIVE&&ICACTIVE!==cont)icHide(ICACTIVE);ICACTIVE=cont;
+  const c=ICHARTS[cont.dataset.id];if(!c)return;
+  const svg=cont.querySelector("svg"),r=svg.getBoundingClientRect();
+  let frac=(e.clientX-r.left)/(r.width||1);frac=Math.max(0,Math.min(1,frac));
+  const i=Math.round(frac*(c.n-1));
+  const dot=cont.querySelector(".ic-dot"),vl=cont.querySelector(".ic-vline"),tip=cont.querySelector(".ic-tip");
+  dot.setAttribute("cx",c.X(i));dot.setAttribute("cy",c.Y(c.v[i]));dot.style.display="";
+  vl.setAttribute("x1",c.X(i));vl.setAttribute("x2",c.X(i));vl.style.display="";
+  tip.textContent=`${c.lab[i]} · ${c.f(c.v[i])}`;
+  let px=(c.X(i)/c.w)*r.width;px=Math.max(34,Math.min(r.width-34,px));tip.style.left=px+"px";tip.style.display="";
+}
+document.addEventListener("mousemove",icMove);
 
 function groupBy(a,k){return a.reduce((o,x)=>{(o[x[k]]=o[x[k]]||[]).push(x);return o;},{});}
 function avg(a,k){return a.length?a.reduce((s,x)=>s+(x[k]||0),0)/a.length:0;}
@@ -676,7 +712,7 @@ function renderHistChart(){
   const cur=HMETRICS.find(m=>m[0]===histMetric)||HMETRICS[0];
   const v=h.map(x=>x[histMetric]||0),l=h.map(x=>String(x.date).slice(5));
   let out=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">`+HMETRICS.map(m=>`<button onclick="setHistMetric('${m[0]}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${histMetric===m[0]?'var(--acc)':'var(--line)'};color:${histMetric===m[0]?'var(--acc)':'var(--mut)'};background:${histMetric===m[0]?'rgba(124,92,255,.10)':'transparent'}">${m[1]}</button>`).join("")+`</div>`;
-  out+=spark(v,l,cur[1]);
+  out+=iChart(v,l,fmt,{area:true});
   host.innerHTML=out;
 }
 function renderHistory(){const h=histArr();renderHistChart();
@@ -866,7 +902,7 @@ function adsKpiCards(A,p){
   const FMT={spend:money,reach:fmt,clicks:fmt,impressions:fmt,ctr:pct,cpm:money};
   return `<div class="grid kpis">`+ADMETRICS.map(([k,lbl])=>{
     const val=(FMT[k]||fmt)(p[k]!=null?p[k]:0);
-    const line=series.length>=2?kpiSpark(series,k,FMT[k]||fmt):`<div style="height:50px;display:flex;align-items:center;color:var(--mut);font-size:11px;opacity:.7">linha após a 1ª coleta diária do robô</div>`;
+    const line=series.length>=2?iChart(series.map(x=>+x[k]||0),series.map(x=>String(x.date).slice(5)),FMT[k]||fmt,{}):`<div style="height:50px;display:flex;align-items:center;color:var(--mut);font-size:11px;opacity:.7">linha após a 1ª coleta diária do robô</div>`;
     return `<div class="card kpi"><div class="lbl">${lbl} · ${adsW}D</div><div class="val">${val}</div>${line}</div>`;
   }).join("")+`</div>`;
 }
@@ -969,7 +1005,7 @@ function renderMultiChart(){
   for(const s of srcs){
     const serie=s.serie||[];if(!serie.some(d=>d[mwMetric]!=null))continue;
     const tot=s.totais&&s.totais[mwMetric];
-    out+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-weight:700;font-size:14px">${WICON[s.source]||"🌐"} ${wlabel(s.source)}</span><span style="color:var(--mut);font-size:12px">${tot!=null?wval(mwMetric,tot):""}</span></div>${kpiSpark(serie,mwMetric,q=>wval(mwMetric,q))}</div>`;
+    out+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-weight:700;font-size:14px">${WICON[s.source]||"🌐"} ${wlabel(s.source)}</span><span style="color:var(--mut);font-size:12px">${tot!=null?wval(mwMetric,tot):""}</span></div>${iChart(serie.map(d=>+d[mwMetric]||0),serie.map(d=>String(d.date).slice(5)),q=>wval(mwMetric,q),{})}</div>`;
   }
   out+=`</div>`;
   host.innerHTML=out;
