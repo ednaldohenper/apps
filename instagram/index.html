@@ -29,6 +29,19 @@
   .tab.active{color:var(--txt);border-color:var(--acc)}.tab:hover{color:var(--txt)}
   .zone{align-self:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--acc);opacity:.7;padding:2px 8px 2px 12px;margin-left:8px;border-left:2px solid var(--line)}
   .zone.first{border-left:0;margin-left:0;padding-left:2px}
+  /* ===== Menu lateral (desktop) ===== */
+  @media(min-width:900px){
+    #app{display:grid;grid-template-columns:214px 1fr;column-gap:30px;align-items:start}
+    #app>header{grid-column:1/-1}
+    nav.tabs{grid-column:1;display:flex;flex-direction:column;align-items:stretch;gap:3px;flex-wrap:nowrap;margin:0;border:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:14px;background:var(--bg2);padding:14px 10px;position:sticky;top:18px;align-self:start}
+    #app>.pbar{grid-column:2}
+    #app>section{grid-column:2}
+    .zone{align-self:stretch;border-left:0;margin:16px 6px 4px;padding:0;opacity:.85}
+    .zone.first{margin-top:2px}
+    .tab{border-bottom:0;border-radius:9px;padding:9px 12px;margin:0}
+    .tab.active{background:rgba(124,92,255,.14);color:var(--txt);border-color:transparent;box-shadow:inset 3px 0 0 var(--acc)}
+    .tab:hover{background:rgba(255,255,255,.05);color:var(--txt)}
+  }
   section{display:none;animation:fade .25s ease}section.active{display:block}
   @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   .grid{display:grid;gap:14px}.kpis{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
@@ -298,7 +311,7 @@ async function open_(){
     B=await decrypt(enc,pass);
     try{ const rm=await fetch("market.enc?t="+Date.now()); if(rm.ok){ MKT=await decrypt((await rm.text()).trim(),pass); } }catch{ MKT=null; }
     sessionStorage.setItem("p",pass);
-    $("#gate").style.display="none";$("#app").style.display="block";
+    $("#gate").style.display="none";$("#app").style.display="";
     build();renderAll();showTab("visao");
   }catch(e){
     const m=String(e.message||e);
