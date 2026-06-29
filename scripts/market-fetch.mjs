@@ -310,9 +310,9 @@ function writeVaultDoc(bundle){
 
   L.push(`\n---\n*Estudo gerado por Tavily (radar de mercado) + Apify (concorrentes) + IA${a?` (${a.model})`:" (síntese não gerada)"}. Janela de concorrentes: últimos 30 dias.*`);
   const md=L.join("\n")+"\n";
-  try{ const p=path.join(dir,"Geração de Demanda","Instagram","Dados & Inteligência"); fs.mkdirSync(p,{recursive:true});
+  try{ const p=path.join(dir,"Marketing","Instagram","Dados & Inteligência"); fs.mkdirSync(p,{recursive:true});
     fs.writeFileSync(path.join(p,"Estudo de Mercado (auto).md"),md);
-    console.log(`Estudo escrito no vault: Geração de Demanda/Instagram/Dados & Inteligência/Estudo de Mercado (auto).md (${md.length} chars).`); }catch(e){ console.error("Vault doc:",e.message); }
+    console.log(`Estudo escrito no vault: Marketing/Instagram/Dados & Inteligência/Estudo de Mercado (auto).md (${md.length} chars).`); }catch(e){ console.error("Vault doc:",e.message); }
 }
 
 async function main(){
