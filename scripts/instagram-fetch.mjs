@@ -572,7 +572,7 @@ function writeVaultDoc(bundle){
   const dir=process.env.VAULT_DIR;
   if(!dir||!fs.existsSync(dir)){ console.log("Vault não montado — documento de inteligência não escrito."); return; }
   try{
-    const outDir=path.join(dir,"Instagram"); fs.mkdirSync(outDir,{recursive:true});
+    const outDir=path.join(dir,"Geração de Demanda","Instagram","Dados & Inteligência"); fs.mkdirSync(outDir,{recursive:true});
     const file=path.join(outDir,"Inteligência Instagram (auto).md");
     fs.writeFileSync(file, vaultDoc(bundle));
     console.log(`Inteligência escrita no vault: ${file}`);

@@ -143,9 +143,9 @@ async function main(){
   const md=buildMd(ai,radar);
   const dir=process.env.VAULT_DIR;
   if(dir && fs.existsSync(dir)){
-    const p=path.join(dir,"Instagram"); fs.mkdirSync(p,{recursive:true});
+    const p=path.join(dir,"Geração de Demanda","Instagram","Dados & Inteligência"); fs.mkdirSync(p,{recursive:true});
     fs.writeFileSync(path.join(p,"Radar de Surf (auto).md"),md);
-    console.log(`Radar escrito no vault: Instagram/Radar de Surf (auto).md (${md.length} chars · ${(ai&&ai.temas||[]).length} temas).`);
+    console.log(`Radar escrito no vault: Geração de Demanda/Instagram/Dados & Inteligência/Radar de Surf (auto).md (${md.length} chars · ${(ai&&ai.temas||[]).length} temas).`);
   } else {
     console.error("VAULT_DIR ausente — radar não gravado.");
     process.exitCode=1;
