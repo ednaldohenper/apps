@@ -832,6 +832,7 @@ function renderAds(){
    ["Frequência",p.frequency?p.frequency.toFixed(2):"—"],["Cliques",fmt(p.clicks)],["CTR",p.ctr?pct(p.ctr):"—"],["CPM",money(p.cpm)]];
   let h=adsAIBlock(A.ai);
   h+=`<div class="grid kpis">${kpis.map(x=>`<div class="card kpi"><div class="lbl">${x[0]} · ${adsW}D</div><div class="val">${x[1]}</div></div>`).join("")}</div>`;
+  h+=`<div class="sectitle">📈 Tendência do tráfego <span class="tag">série diária · escolha a métrica</span></div><div id="adsChart"></div>`;
   h+=followerCostCard(A);
   h+=renderCampaigns(A);
   const acts=Object.entries(p.actions||{}).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
@@ -850,6 +851,19 @@ function renderAds(){
   }
   h+=`<div class="foot">Conta ${A.account||""} · atualizado ${A.updated?new Date(A.updated).toLocaleString("pt-BR"):"—"} · valores na moeda da conta de anúncios</div>`;
   host.innerHTML=h;
+  renderAdsChart();
+}
+let adMetric="spend";
+const ADMETRICS=[["spend","Investimento"],["reach","Alcance"],["clicks","Cliques"],["impressions","Impressões"],["ctr","CTR"],["cpm","CPM"]];
+function setAdMetric(m){adMetric=m;renderAdsChart();}
+function renderAdsChart(){
+  const host=$("#adsChart");if(!host)return;
+  const d=(B.ads&&B.ads.daily)||[];
+  if(d.length<2){host.innerHTML=`<div class="empty">A linha de tendência aparece depois da próxima rodada do robô — ele passou a coletar a <b>série diária de anúncios</b> (gasto, alcance, cliques etc. por dia).</div>`;return;}
+  const cur=ADMETRICS.find(m=>m[0]===adMetric)||ADMETRICS[0];
+  const v=d.map(x=>+x[adMetric]||0),l=d.map(x=>String(x.date).slice(5));
+  let out=`<div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">`+ADMETRICS.map(m=>`<button onclick="setAdMetric('${m[0]}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${adMetric===m[0]?'var(--acc)':'var(--line)'};color:${adMetric===m[0]?'var(--acc)':'var(--mut)'};background:${adMetric===m[0]?'rgba(124,92,255,.10)':'transparent'}">${m[1]}</button>`).join("")+`</div>`+spark(v,l,cur[1])+`</div>`;
+  host.innerHTML=out;
 }
 const CAMP_ACAO={escalar:["⬆️ Escalar","#2ecc71"],manter:["✅ Manter","var(--mut)"],observar:["👀 Observar","#f1c40f"],
   cortar_orcamento:["✂️ Cortar orçam.","#e67e22"],pausar:["⏸️ Pausar","#ff5c7a"],revisar_criativo:["🎨 Criativo","#7c5cff"],revisar_publico:["🎯 Público","#7c5cff"]};

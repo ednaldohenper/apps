@@ -195,6 +195,15 @@ async function adsAttachCreatives(token,ads){
     }catch(e){ /* silencioso por anúncio — não derruba a coleta */ }
   }
 }
+async function adsDaily(token,acct,days){
+  // série DIÁRIA (time_increment=1) pra desenhar a tendência do tráfego no painel.
+  const tr=encodeURIComponent(JSON.stringify({since:_ymd(Date.now()-days*864e5),until:_ymd(Date.now())}));
+  try{
+    const j=await api(token,`${acct}/insights?fields=spend,impressions,reach,clicks,ctr,cpm,actions&time_range=${tr}&time_increment=1&limit=500`);
+    return (j?.data||[]).map(r=>{const actions={};(r.actions||[]).forEach(a=>actions[a.action_type]=+a.value);
+      return {date:r.date_start,spend:+r.spend||0,impressions:+r.impressions||0,reach:+r.reach||0,clicks:+r.clicks||0,ctr:+r.ctr||0,cpm:+r.cpm||0,actions};});
+  }catch(e){ console.error(`ads diário: ${e.message}`); return []; }
+}
 async function buildAds(token){
   const t=(process.env.ADS_TOKEN||"").trim()||token;
   const acct=await adsResolveAccount(t); if(!acct){ console.log("Anúncios pulados (sem conta acessível)."); return null; }
@@ -204,9 +213,11 @@ async function buildAds(token){
   const usados=topAds.filter(a=>a.igMediaId||a.permalink).length;
   if(usados) console.log(`Anúncios — ${usados}/${topAds.length} top anúncios usam post do feed (impulsionamento).`);
   const campaigns=await adsCampaigns(t,acct,28,50);
+  const daily=await adsDaily(t,acct,90);
+  if(daily.length) console.log(`Anúncios — série diária: ${daily.length} dia(s).`);
   const ok=Object.values(periods).some(Boolean)||topAds.length;
   console.log(ok?`Anúncios coletados (${acct}) · ${campaigns.length} campanha(s).`:`Anúncios: conta ${acct} sem dados no período.`);
-  return {account:acct, updated:new Date().toISOString(), periods, topAds, campaigns};
+  return {account:acct, updated:new Date().toISOString(), periods, topAds, campaigns, daily};
 }
 /* ---------- Windsor.ai (multicanal: ads + orgânico, ~28 dias) ---------- */
 const WINDSOR_FIELDS_DEFAULT="source,date,account_name,campaign,clicks,impressions,spend,reach,ctr,cpm,cpc,frequency,conversions,conversion_values,results,likes,comments,shares,saves,video_views,video_plays,total_engagements,total_interactions,engagement,followers,profile_visits,profile_views,plays,accounts_reached,accounts_engaged";
