@@ -29,6 +29,11 @@
   .tab.active{color:var(--txt);border-color:var(--acc)}.tab:hover{color:var(--txt)}
   .zone{align-self:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--acc);opacity:.7;padding:2px 8px 2px 12px;margin-left:8px;border-left:2px solid var(--line)}
   .zone.first{border-left:0;margin-left:0;padding-left:2px}
+  .sub{display:none;width:100%}
+  .sub.open{display:flex;flex-direction:column;gap:1px}
+  .sub a{cursor:pointer;font-size:13px;color:var(--mut);padding:6px 12px;border-radius:7px}
+  .sub a:hover{color:var(--txt);background:rgba(255,255,255,.05)}
+  .sub a.active{color:var(--txt);background:rgba(124,92,255,.12);font-weight:600}
   /* ===== Menu lateral (desktop) ===== */
   @media(min-width:900px){
     #app{display:grid;grid-template-columns:214px 1fr;column-gap:30px;align-items:start}
@@ -40,6 +45,7 @@
     .tab{border-bottom:0;border-radius:9px;padding:9px 12px;margin:0}
     .tab.active{background:rgba(124,92,255,.14);color:var(--txt);border-color:transparent;box-shadow:inset 3px 0 0 var(--acc)}
     .tab:hover{background:rgba(255,255,255,.05);color:var(--txt)}
+    .sub.open{margin:1px 0 5px 12px;padding-left:8px;border-left:1px solid var(--line)}
   }
   section{display:none;animation:fade .25s ease}section.active{display:block}
   @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -313,7 +319,7 @@ async function open_(){
     try{ const rm=await fetch("market.enc?t="+Date.now()); if(rm.ok){ MKT=await decrypt((await rm.text()).trim(),pass); } }catch{ MKT=null; }
     sessionStorage.setItem("p",pass);
     $("#gate").style.display="none";$("#app").style.display="";
-    build();renderAll();showTab("visao");
+    build();renderAll();buildSidebar();showTab("visao");
   }catch(e){
     const m=String(e.message||e);
     $("#gErr").textContent=m.includes("operation-specific")||e.name==="OperationError"?"Senha incorreta.":m;
@@ -432,9 +438,7 @@ function bestDay(m){const D=["Domingo","Segunda","Terça","Quarta","Quinta","Sex
   m.forEach(p=>{const d=spDay(p.date);(g[d]=g[d]||[]).push(p.reach);});let b=null;
   Object.entries(g).forEach(([d,a])=>{if(a.length<2)return;const r=a.reduce((s,x)=>s+x,0)/a.length;if(!b||r>b.reach)b={day:D[d],reach:r};});return b;}
 
-function go(t){const k=(typeof ALIAS!=="undefined"&&ALIAS[t])||t;if(typeof ZONES==="undefined"||!ZONES[k])return;showTab(k);
-  const sid=(typeof SECID!=="undefined"&&SECID[t])||t;const sec=document.getElementById(sid);
-  if(sec&&ZONES[k].length>1){sec.scrollIntoView({behavior:"smooth",block:"start"});}else{window.scrollTo({top:0,behavior:"smooth"});}}
+function go(t){if(typeof SUBS==="undefined")return;const tab=(ALIAS&&ALIAS[t])||t;const sid=(SECID&&SECID[t])||t;if(!SUBS[tab])return;showTab(tab,sid);}
 function pill_(txt,kind){const c={ok:"#2ecc71",bad:"#ff5c7a",warn:"#f1c40f",mut:"var(--mut)"}[kind]||"var(--mut)";return `<span class="pill" style="border-color:${c};color:${c}">${txt}</span>`;}
 function vKind(v){return /rend/i.test(v)?"ok":/sang/i.test(v)?"bad":"warn";}
 function renderExec(){
@@ -1135,21 +1139,30 @@ function renderDiag(){
 
 /* tabs */
 // cada ABA revela um GRUPO de seções (3 zonas: Gestão à Vista / Pesquisa / Executar)
-const ZONES={
-  visao:["overview"],
-  organico:["ai","compare","diag","content_","audience","goals","history"],
-  pago:["ads","multi"],
-  pesquisa:["market","concorrentes"],
-  ganchos:["ganchos"],
-  acoes:["gestao"]
+// cada ABA -> lista de [idSeção, rótulo]. Abas com >1 seção viram submenu expansível.
+const SUBS={
+  visao:[["overview","Visão Geral"]],
+  organico:[["ai","Diagnóstico"],["compare","Comparar"],["diag","Inteligência"],["content_","Conteúdo"],["audience","Audiência"],["goals","Metas"],["history","Histórico"]],
+  pago:[["ads","Anúncios"],["multi","Multicanal"]],
+  pesquisa:[["market","Mercado"],["concorrentes","Concorrentes"]],
+  ganchos:[["ganchos","Banco de Ganchos"]],
+  acoes:[["gestao","Ações"]]
 };
-// apelido: nome antigo (usado por go() nos cards) -> aba nova
+// apelido: nome antigo (go() dos cards) -> aba
 const ALIAS={overview:"visao",gestao:"acoes",ai:"organico",compare:"organico",diag:"organico",content:"organico",ads:"pago",multi:"pago",market:"pesquisa",concorrentes:"pesquisa",audience:"organico",goals:"organico",history:"organico"};
 const SECID={content:"content_"}; // chaves cuja seção tem id diferente
-const PBAR_TABS=new Set(["visao","organico"]); // barra de período global
-function syncPbar(tab){const pb=$("#periodBar");if(pb)pb.style.display=PBAR_TABS.has(tab)?"":"none";}
-function showTab(k){const ids=ZONES[k]||[];document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.t===k));document.querySelectorAll("section").forEach(s=>s.classList.toggle("active",ids.includes(s.id)));syncPbar(k);}
-$("#tabs").addEventListener("click",e=>{const t=e.target.closest(".tab");if(!t)return;showTab(t.dataset.t);window.scrollTo({top:0,behavior:"smooth"});});
+const PBAR_SECS=new Set(["overview","content_"]); // seções que usam o seletor de período
+function syncPbar(secId){const pb=$("#periodBar");if(pb)pb.style.display=PBAR_SECS.has(secId)?"":"none";}
+// monta os submenus na sidebar a partir de SUBS (fonte única)
+function buildSidebar(){document.querySelectorAll(".tab").forEach(tab=>{const k=tab.dataset.t,subs=SUBS[k]||[];if(subs.length<2)return;if(tab.nextElementSibling&&tab.nextElementSibling.classList.contains("sub"))return;const box=document.createElement("div");box.className="sub";box.dataset.t=k;box.innerHTML=subs.map(s=>`<a data-s="${s[0]}">${s[1]}</a>`).join("");tab.after(box);});}
+// mostra UMA aba e UMA seção (acaba o scroll longo); abre o submenu da aba
+function showTab(k,secId){const subs=SUBS[k]||[];if(!subs.length)return;const target=(secId&&subs.some(s=>s[0]===secId))?secId:subs[0][0];
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.t===k));
+  document.querySelectorAll(".sub").forEach(b=>b.classList.toggle("open",b.dataset.t===k));
+  document.querySelectorAll(".sub a").forEach(a=>a.classList.toggle("active",a.closest(".sub").dataset.t===k&&a.dataset.s===target));
+  document.querySelectorAll("section").forEach(s=>s.classList.toggle("active",s.id===target));
+  syncPbar(target);window.scrollTo({top:0,behavior:"smooth"});}
+$("#tabs").addEventListener("click",e=>{const a=e.target.closest(".sub a");if(a){showTab(a.closest(".sub").dataset.t,a.dataset.s);return;}const t=e.target.closest(".tab");if(!t)return;showTab(t.dataset.t);});
 $("#postsTable").addEventListener("click",e=>{const th=e.target.closest("th[data-s]");if(th)renderPosts(th.dataset.s);});
 
 /* boot: tenta senha guardada na sessão */
