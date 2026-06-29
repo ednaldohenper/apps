@@ -920,6 +920,7 @@ function renderMulti(){
   } else {
     h+=`<div class="empty" style="margin-bottom:12px">A <b>leitura multicanal da IA</b> (qual canal está melhor e o que potencializar) aparece na próxima rodada do robô, com o <b>ANTHROPIC_API_KEY</b> ativo. Abaixo, os números por canal.</div>`;
   }
+  h+=`<div class="sectitle">📈 Tendência por canal <span class="tag">escolha a métrica</span></div><div id="multiChart"></div>`;
   h+=`<div class="sectitle">📊 Números por canal</div>`;
   h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">`;
   for(const s of srcs){
@@ -931,6 +932,28 @@ function renderMulti(){
   h+=`</div>`;
   h+=`<div class="foot">Fonte: Windsor.ai · janela ${W.from||""} → ${W.to||""} · ${W.rowCount||0} linhas${A?" · leitura "+(A.model||"IA"):""} · atualizado ${W.updated?new Date(W.updated).toLocaleString("pt-BR"):"—"}</div>`;
   host.innerHTML=h;
+  renderMultiChart();
+}
+let mwMetric=null;
+function setMwMetric(m){mwMetric=m;renderMultiChart();}
+function mwMetricsAvail(srcs){const set=new Set();srcs.forEach(s=>(s.serie||[]).forEach(d=>Object.keys(d).forEach(k=>{if(k!=="date"&&typeof d[k]==="number")set.add(k);})));return WORDER.filter(k=>set.has(k)).concat([...set].filter(k=>!WORDER.includes(k)));}
+function renderMultiChart(){
+  const host=$("#multiChart");if(!host)return;const W=B.windsor;if(!W||!W.sources)return;
+  const order=["facebook","facebook_ads","instagram_public","instagram","facebook_organic","tiktok_organic","tiktok"];
+  const srcs=W.sources.slice().filter(s=>(s.serie||[]).length>=2).sort((a,b)=>{const ia=order.indexOf(a.source),ib=order.indexOf(b.source);return (ia<0?99:ia)-(ib<0?99:ib);});
+  if(!srcs.length){host.innerHTML=`<div class="empty">Sem série diária suficiente pra desenhar as linhas (precisa de ≥2 dias por canal).</div>`;return;}
+  const metrics=mwMetricsAvail(srcs);
+  if(!metrics.length){host.innerHTML="";return;}
+  if(!mwMetric||!metrics.includes(mwMetric)) mwMetric=metrics.includes("reach")?"reach":(metrics.includes("spend")?"spend":metrics[0]);
+  let out=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">`+metrics.slice(0,8).map(k=>`<button onclick="setMwMetric('${k}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${mwMetric===k?'var(--acc)':'var(--line)'};color:${mwMetric===k?'var(--acc)':'var(--mut)'};background:${mwMetric===k?'rgba(124,92,255,.10)':'transparent'}">${WLAB[k]||k}</button>`).join("")+`</div>`;
+  out+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">`;
+  for(const s of srcs){
+    const serie=s.serie||[];if(!serie.some(d=>d[mwMetric]!=null))continue;
+    const v=serie.map(d=>+d[mwMetric]||0),tot=s.totais&&s.totais[mwMetric];
+    out+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-weight:700;font-size:14px">${WICON[s.source]||"🌐"} ${wlabel(s.source)}</span><span style="color:var(--mut);font-size:12px">${tot!=null?wval(mwMetric,tot):""}</span></div>${miniLine(v,"#7c5cff")}</div>`;
+  }
+  out+=`</div>`;
+  host.innerHTML=out;
 }
 
 /* ===== Estudo de Mercado (Tavily + Apify) ===== */
