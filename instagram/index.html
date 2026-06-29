@@ -427,10 +427,19 @@ function renderGrowth(){const h=histArr();$("#growthTag").textContent=`${h.lengt
 function spark(v,l,u){const w=900,ht=120,pad=24,mn=Math.min(...v),mx=Math.max(...v),rng=mx-mn||1;
   const x=i=>pad+i*(w-2*pad)/(v.length-1||1),y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
   const pts=v.map((q,i)=>`${x(i)},${y(q)}`).join(" ");const area=`${pad},${ht-pad} ${pts} ${x(v.length-1)},${ht-pad}`;
-  const dots=v.map((q,i)=>`<circle cx="${x(i)}" cy="${y(q)}" r="3" fill="#7c5cff"/>`).join("");const tot=v[v.length-1]-v[0];
+  const dots=v.map((q,i)=>`<circle cx="${x(i)}" cy="${y(q)}" r="3" fill="#7c5cff"/><circle cx="${x(i)}" cy="${y(q)}" r="10" fill="transparent"><title>${l[i]} · ${fmt(q)} ${u}</title></circle>`).join("");const tot=v[v.length-1]-v[0];
   return`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span class="muted">${l[0]} → ${l[l.length-1]}</span><span style="font-weight:700;color:${tot>=0?'#2ecc71':'#ff5c7a'}">${tot>=0?'+':''}${fmt(tot)} ${u}</span></div>
    <svg viewBox="0 0 ${w} ${ht}" class="spark" preserveAspectRatio="none" style="height:140px"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7c5cff" stop-opacity=".35"/><stop offset="1" stop-color="#7c5cff" stop-opacity="0"/></linearGradient></defs>
    <polygon points="${area}" fill="url(#g)"/><polyline points="${pts}" fill="none" stroke="#7c5cff" stroke-width="2.5" stroke-linejoin="round"/>${dots}</svg>`;}
+// mini-linha pra cards: linha + tooltip por ponto (data · valor) + legenda (de→até, mín/máx)
+function kpiSpark(series,key,fmtFn){
+  const f=fmtFn||fmt;const v=series.map(x=>+x[key]||0),lab=series.map(x=>String(x.date).slice(5));
+  const w=300,ht=56,pad=5,mn=Math.min(...v),mx=Math.max(...v),rng=mx-mn||1;
+  const x=i=>pad+i*(w-2*pad)/(v.length-1||1),y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
+  const pts=v.map((q,i)=>`${x(i)},${y(q)}`).join(" ");const li=v.length-1;
+  const tip=v.map((q,i)=>`<circle cx="${x(i)}" cy="${y(q)}" r="8" fill="transparent"><title>${lab[i]} · ${f(q)}</title></circle>`).join("");
+  return `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" style="width:100%;height:42px;margin:6px 0 3px"><polyline points="${pts}" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linejoin="round"/><circle cx="${x(li)}" cy="${y(v[li])}" r="3" fill="#7c5cff"/>${tip}</svg>`+
+    `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);gap:6px"><span>${lab[0]}→${lab[li]}</span><span>mín ${f(mn)} · máx ${f(mx)}</span></div>`;}
 
 function groupBy(a,k){return a.reduce((o,x)=>{(o[x[k]]=o[x[k]]||[]).push(x);return o;},{});}
 function avg(a,k){return a.length?a.reduce((s,x)=>s+(x[k]||0),0)/a.length:0;}
@@ -857,7 +866,7 @@ function adsKpiCards(A,p){
   const FMT={spend:money,reach:fmt,clicks:fmt,impressions:fmt,ctr:pct,cpm:money};
   return `<div class="grid kpis">`+ADMETRICS.map(([k,lbl])=>{
     const val=(FMT[k]||fmt)(p[k]!=null?p[k]:0);
-    const line=series.length>=2?miniLine(series.map(x=>+x[k]||0),"#7c5cff"):`<div style="height:50px;display:flex;align-items:center;color:var(--mut);font-size:11px;opacity:.7">linha após a 1ª coleta diária do robô</div>`;
+    const line=series.length>=2?kpiSpark(series,k,FMT[k]||fmt):`<div style="height:50px;display:flex;align-items:center;color:var(--mut);font-size:11px;opacity:.7">linha após a 1ª coleta diária do robô</div>`;
     return `<div class="card kpi"><div class="lbl">${lbl} · ${adsW}D</div><div class="val">${val}</div>${line}</div>`;
   }).join("")+`</div>`;
 }
@@ -959,8 +968,8 @@ function renderMultiChart(){
   out+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">`;
   for(const s of srcs){
     const serie=s.serie||[];if(!serie.some(d=>d[mwMetric]!=null))continue;
-    const v=serie.map(d=>+d[mwMetric]||0),tot=s.totais&&s.totais[mwMetric];
-    out+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-weight:700;font-size:14px">${WICON[s.source]||"🌐"} ${wlabel(s.source)}</span><span style="color:var(--mut);font-size:12px">${tot!=null?wval(mwMetric,tot):""}</span></div>${miniLine(v,"#7c5cff")}</div>`;
+    const tot=s.totais&&s.totais[mwMetric];
+    out+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-weight:700;font-size:14px">${WICON[s.source]||"🌐"} ${wlabel(s.source)}</span><span style="color:var(--mut);font-size:12px">${tot!=null?wval(mwMetric,tot):""}</span></div>${kpiSpark(serie,mwMetric,q=>wval(mwMetric,q))}</div>`;
   }
   out+=`</div>`;
   host.innerHTML=out;
