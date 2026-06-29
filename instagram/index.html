@@ -6,12 +6,12 @@
 <meta name="theme-color" content="#0b0d12">
 <title>Central de Inteligência — Instagram</title>
 <style>
-  :root{--bg:#0b0d12;--bg2:#11141c;--card:#161a24;--card2:#1c2130;--line:#262c3a;--txt:#eef1f7;
-   --mut:#9aa3b4;--mut2:#6b7280;--acc:#7c5cff;--acc2:#4ad0ff;--ok:#2ecc71;--bad:#ff5c7a;
-   --grad:linear-gradient(135deg,#7c5cff,#4ad0ff);--shadow:0 10px 30px rgba(0,0,0,.35)}
+  :root{--bg:#0a0812;--bg2:#120f1c;--card:#171320;--card2:#1f1a2d;--line:#2a2440;--txt:#f1edf7;
+   --mut:#9a93ad;--mut2:#6b6480;--acc:#7c5cff;--acc2:#a78bd9;--gold:#c9a24a;--ok:#2ecc71;--bad:#ff5c7a;
+   --grad:linear-gradient(135deg,#7c5cff,#c9a24a);--shadow:0 10px 30px rgba(0,0,0,.45)}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-   background:radial-gradient(1200px 600px at 80% -10%,#1a1f33 0%,transparent 60%),var(--bg);
+   background:radial-gradient(1100px 560px at 82% -12%,#2a1c44 0%,transparent 58%),radial-gradient(900px 500px at 8% 4%,#1a1330 0%,transparent 55%),var(--bg);
    color:var(--txt);min-height:100vh;line-height:1.45;-webkit-font-smoothing:antialiased}
   a{color:var(--acc2);text-decoration:none}
   .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 80px}
@@ -52,7 +52,7 @@
   .grid{display:grid;gap:14px}.kpis{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
   .card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
   .kpi .lbl{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
-  .kpi .val{font-size:28px;font-weight:800;margin-top:6px;letter-spacing:-.5px}.kpi .sub{font-size:12px;color:var(--mut);margin-top:4px}
+  .kpi .val{font-size:28px;font-weight:800;margin-top:6px;letter-spacing:-.5px;color:var(--gold)}.kpi .sub{font-size:12px;color:var(--mut);margin-top:4px}
   .delta{font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;display:inline-block}
   .delta.up{color:#bdf3d3;background:#11331f}.delta.down{color:#ffd0db;background:#33141d}.delta.flat{color:var(--mut);background:var(--card2)}
   .sectitle{font-size:15px;font-weight:700;margin:24px 0 12px;display:flex;align-items:center;gap:8px}
@@ -455,8 +455,8 @@ function iChart(v,lab,fmtFn,opts){
     `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" style="width:100%;height:${svgh}px;display:block;overflow:visible"><rect x="0" y="0" width="${w}" height="${ht}" fill="transparent"/>${area}`+
     `<polyline points="${pts}" fill="none" stroke="#7c5cff" stroke-width="${opts.area?2.5:2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`+
     `<line class="ic-vline" y1="0" y2="${ht}" stroke="#7c5cff" stroke-opacity=".45" stroke-width="1" vector-effect="non-scaling-stroke" style="display:none"/>`+
-    `<circle class="ic-dot" r="4" fill="#7c5cff" stroke="#0b0d12" stroke-width="1.5" style="display:none"/></svg>`+
-    `<div class="ic-tip" style="position:absolute;display:none;pointer-events:none;background:var(--card2);border:1px solid var(--acc);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;color:var(--txt);white-space:nowrap;transform:translateX(-50%);top:-6px;z-index:6;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>`+
+    `<circle class="ic-dot" r="4" fill="#c9a24a" stroke="#0a0812" stroke-width="1.5" style="display:none"/></svg>`+
+    `<div class="ic-tip" style="position:absolute;display:none;pointer-events:none;background:var(--card2);border:1px solid var(--gold);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;color:var(--txt);white-space:nowrap;transform:translateX(-50%);top:-6px;z-index:6;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>`+
     `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:3px"><span>${lab[0]}→${lab[v.length-1]}</span><span>mín ${f(mn)} · máx ${f(mx)}</span></div>`+
     `</div>`;
 }
@@ -662,7 +662,7 @@ function renderPosts(k){if(k===sk)sd*=-1;else{sk=k;sd=-1;}
 function renderAudience(){const c=STATE.demo.city||[];
   if(c.length){const mx=c[0].v;$("#cities").innerHTML=c.slice(0,10).map(x=>`<div class="hbar-row"><span class="lbl" title="${x.k}">${x.k.split(",")[0]}</span><span class="bar"><span style="width:${x.v/mx*100}%"></span></span><span class="v">${fmt(x.v)}</span></div>`).join("");}
   else $("#cities").innerHTML=`<div class="empty">Sem dados.</div>`;
-  const g=STATE.demo.gender||[];if(g.length){const map={M:"Homens",F:"Mulheres",U:"N/D"},col={M:"#4ad0ff",F:"#ff7ac4",U:"#6b7280"},tot=g.reduce((s,x)=>s+x.v,0);
+  const g=STATE.demo.gender||[];if(g.length){const map={M:"Homens",F:"Mulheres",U:"N/D"},col={M:"#7c5cff",F:"#c9a24a",U:"#6b6480"},tot=g.reduce((s,x)=>s+x.v,0);
     $("#gender").innerHTML=`<div class="donut-wrap">${donut(g.map(x=>({v:x.v,c:col[x.k]||"#888"})))}<div class="legend">${g.map(x=>`<div><span class="dot" style="background:${col[x.k]||'#888'}"></span>${map[x.k]||x.k} — <b>${pct(x.v/tot*100)}</b></div>`).join("")}</div></div>`;}
   else $("#gender").innerHTML=`<div class="empty">Sem dados.</div>`;
   const ag=STATE.demo.age||[];if(ag.length){const o=["13-17","18-24","25-34","35-44","45-54","55-64","65+"],s=[...ag].sort((a,b)=>o.indexOf(a.k)-o.indexOf(b.k)),mx=Math.max(...s.map(x=>x.v));
@@ -692,7 +692,7 @@ function renderGoals(){const goals=getGoals();
     const projDate=isFinite(projDays)?new Date(today.getTime()+projDays*864e5):null;
     let st,sc;if(done){st="✅ Concluída";sc="done";}else if(rate<=0){st="Sem avanço";sc="behind";}
     else if(projDays<=daysLeft){st="🚀 Adiantado";sc="ahead";}else if(projDays<=daysLeft*1.15){st="No ritmo";sc="ontrack";}else{st="⚠️ Atrasado";sc="behind";}
-    const col=done?"linear-gradient(90deg,#7c5cff,#4ad0ff)":sc==="behind"?"#ff5c7a":sc==="ahead"?"#2ecc71":"linear-gradient(90deg,#7c5cff,#4ad0ff)";
+    const col=done?"linear-gradient(90deg,#7c5cff,#c9a24a)":sc==="behind"?"#ff5c7a":sc==="ahead"?"#2ecc71":"linear-gradient(90deg,#7c5cff,#c9a24a)";
     return`<div class="goal"><div class="gh"><div><div class="gname">${mLabel(g.metric)} → ${fmt(target)}</div>
       <div class="gmeta">Prazo: ${dl.toLocaleDateString("pt-BR")} · ${daysLeft} dias restantes</div></div>
       <div style="text-align:right"><div class="pct">${pct(prog)}</div><span class="gstatus ${sc}">${st}</span></div></div>
