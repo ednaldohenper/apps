@@ -276,7 +276,9 @@
     <div id="goalsList"></div>
   </section>
   <section id="history">
-    <div class="sectitle" style="margin-top:0">📅 Histórico diário <span class="tag" id="histTag">coletado pelo robô</span></div>
+    <div class="sectitle" style="margin-top:0">📈 Evolução no tempo <span class="tag">escolha a métrica</span></div>
+    <div id="histChart" class="card"></div>
+    <div class="sectitle">📅 Histórico diário <span class="tag" id="histTag">coletado pelo robô</span></div>
     <div class="card" style="overflow-x:auto"><table><thead><tr>
       <th>Data</th><th class="num">Seguidores</th><th class="num">Δ dia</th>
       <th class="num">Alcance 28d</th><th class="num">Views 28d</th><th class="num">Interações 28d</th>
@@ -656,7 +658,19 @@ function renderGoals(){const goals=getGoals();
       <span>Projeção: <b>${projDate?projDate.toLocaleDateString("pt-BR"):(done?"feito":"—")}</b></span>
       <span style="margin-left:auto"><a href="#" onclick="delGoal(${g.id});return false" style="color:var(--bad)">remover</a></span></div></div>`;}).join("");}
 
-function renderHistory(){const h=histArr();
+let histMetric="followers";
+const HMETRICS=[["followers","Seguidores"],["reach28","Alcance 28d"],["views28","Views 28d"],["inter28","Interações 28d"]];
+function setHistMetric(m){histMetric=m;renderHistChart();}
+function renderHistChart(){
+  const host=$("#histChart");if(!host)return;const h=histArr();
+  if(h.length<2){host.innerHTML=`<div class="empty">O gráfico aparece a partir do 2º dia coletado pelo robô.</div>`;return;}
+  const cur=HMETRICS.find(m=>m[0]===histMetric)||HMETRICS[0];
+  const v=h.map(x=>x[histMetric]||0),l=h.map(x=>String(x.date).slice(5));
+  let out=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">`+HMETRICS.map(m=>`<button onclick="setHistMetric('${m[0]}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${histMetric===m[0]?'var(--acc)':'var(--line)'};color:${histMetric===m[0]?'var(--acc)':'var(--mut)'};background:${histMetric===m[0]?'rgba(124,92,255,.10)':'transparent'}">${m[1]}</button>`).join("")+`</div>`;
+  out+=spark(v,l,cur[1]);
+  host.innerHTML=out;
+}
+function renderHistory(){const h=histArr();renderHistChart();
   if(!h.length){$("#histBody").innerHTML=`<tr><td colspan="6" class="empty">Sem registros.</td></tr>`;return;}
   $("#histBody").innerHTML=h.slice().reverse().map((x,i,a)=>{const prev=a[i+1],d=prev?x.followers-prev.followers:null;
     return`<tr><td>${new Date(x.date).toLocaleDateString("pt-BR")}</td><td class="num">${fmt(x.followers)}</td>
