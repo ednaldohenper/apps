@@ -828,11 +828,9 @@ function renderAds(){
   if(!A){host.innerHTML=`<div class="empty">Para ver seus anúncios aqui, cadastre o secret <b>AD_ACCOUNT_ID</b> (no formato <code>act_123456</code>) e um token com permissão <b>ads_read</b> (secret <b>ADS_TOKEN</b>) no repositório, e rode o robô.</div>`;return;}
   const p=A.periods&&A.periods[adsW];
   if(!p){host.innerHTML=`<div class="empty">Conta de anúncios conectada (<b>${A.account||""}</b>), mas sem dados neste período — confirme que o token tem <b>ads_read</b> e que houve investimento em ${adsW} dias.</div>`;return;}
-  const kpis=[["Investimento",money(p.spend)],["Alcance",fmt(p.reach)],["Impressões",fmt(p.impressions)],
-   ["Frequência",p.frequency?p.frequency.toFixed(2):"—"],["Cliques",fmt(p.clicks)],["CTR",p.ctr?pct(p.ctr):"—"],["CPM",money(p.cpm)]];
   let h=adsAIBlock(A.ai);
-  h+=`<div class="grid kpis">${kpis.map(x=>`<div class="card kpi"><div class="lbl">${x[0]} · ${adsW}D</div><div class="val">${x[1]}</div></div>`).join("")}</div>`;
-  h+=`<div class="sectitle">📈 Tendência do tráfego <span class="tag">série diária · escolha a métrica</span></div><div id="adsChart"></div>`;
+  h+=`<div class="sectitle" style="margin-top:0">📊 Indicadores <span class="tag">${adsW}D · com tendência diária</span></div>`;
+  h+=adsKpiCards(A,p);
   h+=followerCostCard(A);
   h+=renderCampaigns(A);
   const acts=Object.entries(p.actions||{}).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
@@ -851,19 +849,17 @@ function renderAds(){
   }
   h+=`<div class="foot">Conta ${A.account||""} · atualizado ${A.updated?new Date(A.updated).toLocaleString("pt-BR"):"—"} · valores na moeda da conta de anúncios</div>`;
   host.innerHTML=h;
-  renderAdsChart();
 }
-let adMetric="spend";
 const ADMETRICS=[["spend","Investimento"],["reach","Alcance"],["clicks","Cliques"],["impressions","Impressões"],["ctr","CTR"],["cpm","CPM"]];
-function setAdMetric(m){adMetric=m;renderAdsChart();}
-function renderAdsChart(){
-  const host=$("#adsChart");if(!host)return;
-  const d=(B.ads&&B.ads.daily)||[];
-  if(d.length<2){host.innerHTML=`<div class="empty">A linha de tendência aparece depois da próxima rodada do robô — ele passou a coletar a <b>série diária de anúncios</b> (gasto, alcance, cliques etc. por dia).</div>`;return;}
-  const cur=ADMETRICS.find(m=>m[0]===adMetric)||ADMETRICS[0];
-  const v=d.map(x=>+x[adMetric]||0),l=d.map(x=>String(x.date).slice(5));
-  let out=`<div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">`+ADMETRICS.map(m=>`<button onclick="setAdMetric('${m[0]}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${adMetric===m[0]?'var(--acc)':'var(--line)'};color:${adMetric===m[0]?'var(--acc)':'var(--mut)'};background:${adMetric===m[0]?'rgba(124,92,255,.10)':'transparent'}">${m[1]}</button>`).join("")+`</div>`+spark(v,l,cur[1])+`</div>`;
-  host.innerHTML=out;
+function adsKpiCards(A,p){
+  const cut=new Date(Date.now()-adsW*864e5).toISOString().slice(0,10);
+  const all=(A.daily||[]),dd=all.filter(x=>(x.date||"")>=cut),series=dd.length>=2?dd:all;
+  const FMT={spend:money,reach:fmt,clicks:fmt,impressions:fmt,ctr:pct,cpm:money};
+  return `<div class="grid kpis">`+ADMETRICS.map(([k,lbl])=>{
+    const val=(FMT[k]||fmt)(p[k]!=null?p[k]:0);
+    const line=series.length>=2?miniLine(series.map(x=>+x[k]||0),"#7c5cff"):`<div style="height:50px;display:flex;align-items:center;color:var(--mut);font-size:11px;opacity:.7">linha após a 1ª coleta diária do robô</div>`;
+    return `<div class="card kpi"><div class="lbl">${lbl} · ${adsW}D</div><div class="val">${val}</div>${line}</div>`;
+  }).join("")+`</div>`;
 }
 const CAMP_ACAO={escalar:["⬆️ Escalar","#2ecc71"],manter:["✅ Manter","var(--mut)"],observar:["👀 Observar","#f1c40f"],
   cortar_orcamento:["✂️ Cortar orçam.","#e67e22"],pausar:["⏸️ Pausar","#ff5c7a"],revisar_criativo:["🎨 Criativo","#7c5cff"],revisar_publico:["🎯 Público","#7c5cff"]};
