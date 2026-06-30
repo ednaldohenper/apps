@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#faf8f3">
 <title>Central de Inteligência — Instagram</title>
 <style>
-  :root{--bg:#0a0812;--bg2:#120f1c;--card:#171320;--card2:#1f1a2d;--line:#2a2440;--txt:#f1edf7;
-   --mut:#9a93ad;--mut2:#6b6480;--acc:#7c5cff;--acc2:#a78bd9;--gold:#c9a24a;--ok:#2ecc71;--bad:#ff5c7a;
-   --grad:linear-gradient(135deg,#7c5cff,#c9a24a);--shadow:0 10px 30px rgba(0,0,0,.45)}
+  :root{--bg:#faf8f3;--bg2:#f2efe7;--card:#ffffff;--card2:#f6f3ec;--line:#e7e2d6;--txt:#16181c;
+   --mut:#6b7280;--mut2:#9aa0ab;--acc:#b0863b;--acc2:#9a7430;--gold:#c9a24a;--ok:#2e9e5b;--bad:#d94a63;
+   --grad:linear-gradient(135deg,#c9a24a,#b0863b);--shadow:0 8px 24px rgba(40,32,12,.10)}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-   background:radial-gradient(1100px 560px at 82% -12%,#2a1c44 0%,transparent 58%),radial-gradient(900px 500px at 8% 4%,#1a1330 0%,transparent 55%),var(--bg);
+   background:radial-gradient(1100px 560px at 84% -14%,#f3e9cf 0%,transparent 56%),var(--bg);
    color:var(--txt);min-height:100vh;line-height:1.45;-webkit-font-smoothing:antialiased}
   a{color:var(--acc2);text-decoration:none}
   .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 80px}
@@ -20,7 +20,7 @@
   .hid{flex:1;min-width:200px}.hid h1{font-size:20px;font-weight:700}.hid .u{color:var(--mut);font-size:14px}
   .hbadges{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
   .pill{font-size:12px;padding:3px 10px;border-radius:999px;background:var(--card2);border:1px solid var(--line);color:var(--mut)}
-  .pill.ok{color:#bdf3d3;border-color:#1f5d3c;background:#10301f}.pill.bad{color:#ffd0db;border-color:#5d1f33;background:#301017}
+  .pill.ok{color:#1c7a45;border-color:#c2e6cf;background:#eaf7ef}.pill.bad{color:#b3243c;border-color:#f2cdd5;background:#fceef0}
   .btn{cursor:pointer;border:1px solid var(--line);background:var(--card2);color:var(--txt);padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;transition:.15s}
   .btn:hover{border-color:var(--acc);transform:translateY(-1px)}.btn.primary{background:var(--grad);border:none;color:#0b0d12}
   .btn.ghost{background:transparent}.btn.sm{padding:6px 10px;font-size:12px}
@@ -32,8 +32,8 @@
   .sub{display:none;width:100%}
   .sub.open{display:flex;flex-direction:column;gap:1px}
   .sub a{cursor:pointer;font-size:13px;color:var(--mut);padding:6px 12px;border-radius:7px}
-  .sub a:hover{color:var(--txt);background:rgba(255,255,255,.05)}
-  .sub a.active{color:var(--txt);background:rgba(124,92,255,.12);font-weight:600}
+  .sub a:hover{color:var(--txt);background:rgba(0,0,0,.045)}
+  .sub a.active{color:var(--txt);background:rgba(176,134,59,.12);font-weight:600}
   /* ===== Menu lateral (desktop) ===== */
   @media(min-width:900px){
     #app{display:grid;grid-template-columns:214px 1fr;column-gap:30px;align-items:start}
@@ -43,8 +43,8 @@
     .zone{align-self:stretch;border-left:0;margin:16px 6px 4px;padding:0;opacity:.85}
     .zone.first{margin-top:2px}
     .tab{border-bottom:0;border-radius:9px;padding:9px 12px;margin:0}
-    .tab.active{background:rgba(124,92,255,.14);color:var(--txt);border-color:transparent;box-shadow:inset 3px 0 0 var(--acc)}
-    .tab:hover{background:rgba(255,255,255,.05);color:var(--txt)}
+    .tab.active{background:rgba(176,134,59,.14);color:var(--txt);border-color:transparent;box-shadow:inset 3px 0 0 var(--acc)}
+    .tab:hover{background:rgba(0,0,0,.045);color:var(--txt)}
     .sub.open{margin:1px 0 5px 12px;padding-left:8px;border-left:1px solid var(--line)}
   }
   section{display:none;animation:fade .25s ease}section.active{display:block}
@@ -54,7 +54,7 @@
   .kpi .lbl{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
   .kpi .val{font-size:28px;font-weight:800;margin-top:6px;letter-spacing:-.5px;color:var(--gold)}.kpi .sub{font-size:12px;color:var(--mut);margin-top:4px}
   .delta{font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;display:inline-block}
-  .delta.up{color:#bdf3d3;background:#11331f}.delta.down{color:#ffd0db;background:#33141d}.delta.flat{color:var(--mut);background:var(--card2)}
+  .delta.up{color:#1c7a45;background:#e8f6ee}.delta.down{color:#b3243c;background:#fbe9ec}.delta.flat{color:var(--mut);background:var(--card2)}
   .sectitle{font-size:15px;font-weight:700;margin:24px 0 12px;display:flex;align-items:center;gap:8px}
   .sectitle .tag{font-size:11px;font-weight:600;color:var(--mut);background:var(--card2);border:1px solid var(--line);padding:2px 8px;border-radius:999px}
   table{width:100%;border-collapse:collapse;font-size:13px}
@@ -62,8 +62,8 @@
   th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;cursor:pointer}
   td .cap{color:var(--mut);font-size:12px;max-width:340px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .fmt{font-size:11px;padding:2px 7px;border-radius:6px;font-weight:700}
-  .fmt.REELS{background:#2a1a40;color:#cdb4ff}.fmt.FEED{background:#13314a;color:#a9d8ff}
-  .fmt.STORY{background:#3a2a12;color:#ffd8a0}.fmt.CAROUSEL_ALBUM{background:#1a3a2e;color:#a9f0c8}
+  .fmt.REELS{background:#efe9f7;color:#6b4ea0}.fmt.FEED{background:#e9f1fb;color:#2f6bd8}
+  .fmt.STORY{background:#f8efda;color:#9a6f24}.fmt.CAROUSEL_ALBUM{background:#e9f6ef;color:#1c7a45}
   .num{font-variant-numeric:tabular-nums;font-weight:700}
   .bar{height:8px;border-radius:6px;background:var(--card2);overflow:hidden}.bar>span{display:block;height:100%;background:var(--grad)}
   .hbar-row{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13px}
@@ -79,7 +79,7 @@
   .goal .bigbar{height:12px;border-radius:8px;background:var(--bg2);overflow:hidden;margin:10px 0}.goal .bigbar>span{display:block;height:100%;border-radius:8px;transition:width .6s}
   .goal .stats{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:8px}.goal .stats b{color:var(--txt)}
   .gstatus{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
-  .gstatus.ahead{background:#11331f;color:#bdf3d3}.gstatus.ontrack{background:#13314a;color:#a9d8ff}.gstatus.behind{background:#33141d;color:#ffd0db}.gstatus.done{background:var(--grad);color:#0b0d12}
+  .gstatus.ahead{background:#e8f6ee;color:#1c7a45}.gstatus.ontrack{background:#e9f1fb;color:#2f6bd8}.gstatus.behind{background:#fbe9ec;color:#b3243c}.gstatus.done{background:var(--grad);color:#fff}
   input,select{background:var(--bg2);border:1px solid var(--line);color:var(--txt);padding:10px 12px;border-radius:10px;font-size:13px;width:100%;font-family:inherit}
   input:focus,select:focus{outline:none;border-color:var(--acc)}
   label.fl{font-size:12px;color:var(--mut);display:block;margin-bottom:5px;font-weight:600}
@@ -380,7 +380,7 @@ function renderSeries(){
   const tot=isPreset?((STATE.totals||{})[PERIOD.days]||null):null;
   let reachCard;
   if(f.length>=2){const avg=Math.round(f.reduce((a,x)=>a+(x.reach||0),0)/f.length);
-    reachCard=`<div class="card kpi"><div class="lbl">Alcance · média/dia</div><div class="val" style="font-size:24px">${fmt(avg)}</div>${miniLine(f.map(x=>x.reach),"#7c5cff")}<div class="sub">contas únicas/dia no período</div></div>`;}
+    reachCard=`<div class="card kpi"><div class="lbl">Alcance · média/dia</div><div class="val" style="font-size:24px">${fmt(avg)}</div>${miniLine(f.map(x=>x.reach),"#b0863b")}<div class="sub">contas únicas/dia no período</div></div>`;}
   else reachCard=`<div class="card kpi"><div class="lbl">Alcance · média/dia</div><div class="val" style="font-size:24px">—</div><div class="sub">acumulando a série diária…</div></div>`;
   const vc=v=>v==null?"—":fmt(v);
   const note=isPreset?"total do período":"total disponível em 7/28/90D";
@@ -427,10 +427,10 @@ function renderGrowth(){const h=histArr();$("#growthTag").textContent=`${h.lengt
 function spark(v,l,u){const w=900,ht=120,pad=24,mn=Math.min(...v),mx=Math.max(...v),rng=mx-mn||1;
   const x=i=>pad+i*(w-2*pad)/(v.length-1||1),y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
   const pts=v.map((q,i)=>`${x(i)},${y(q)}`).join(" ");const area=`${pad},${ht-pad} ${pts} ${x(v.length-1)},${ht-pad}`;
-  const dots=v.map((q,i)=>`<circle cx="${x(i)}" cy="${y(q)}" r="3" fill="#7c5cff"/><circle cx="${x(i)}" cy="${y(q)}" r="10" fill="transparent"><title>${l[i]} · ${fmt(q)} ${u}</title></circle>`).join("");const tot=v[v.length-1]-v[0];
+  const dots=v.map((q,i)=>`<circle cx="${x(i)}" cy="${y(q)}" r="3" fill="#b0863b"/><circle cx="${x(i)}" cy="${y(q)}" r="10" fill="transparent"><title>${l[i]} · ${fmt(q)} ${u}</title></circle>`).join("");const tot=v[v.length-1]-v[0];
   return`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span class="muted">${l[0]} → ${l[l.length-1]}</span><span style="font-weight:700;color:${tot>=0?'#2ecc71':'#ff5c7a'}">${tot>=0?'+':''}${fmt(tot)} ${u}</span></div>
-   <svg viewBox="0 0 ${w} ${ht}" class="spark" preserveAspectRatio="none" style="height:140px"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7c5cff" stop-opacity=".35"/><stop offset="1" stop-color="#7c5cff" stop-opacity="0"/></linearGradient></defs>
-   <polygon points="${area}" fill="url(#g)"/><polyline points="${pts}" fill="none" stroke="#7c5cff" stroke-width="2.5" stroke-linejoin="round"/>${dots}</svg>`;}
+   <svg viewBox="0 0 ${w} ${ht}" class="spark" preserveAspectRatio="none" style="height:140px"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#b0863b" stop-opacity=".35"/><stop offset="1" stop-color="#b0863b" stop-opacity="0"/></linearGradient></defs>
+   <polygon points="${area}" fill="url(#g)"/><polyline points="${pts}" fill="none" stroke="#b0863b" stroke-width="2.5" stroke-linejoin="round"/>${dots}</svg>`;}
 // mini-linha pra cards: linha + tooltip por ponto (data · valor) + legenda (de→até, mín/máx)
 function kpiSpark(series,key,fmtFn){
   const f=fmtFn||fmt;const v=series.map(x=>+x[key]||0),lab=series.map(x=>String(x.date).slice(5));
@@ -438,7 +438,7 @@ function kpiSpark(series,key,fmtFn){
   const x=i=>pad+i*(w-2*pad)/(v.length-1||1),y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
   const pts=v.map((q,i)=>`${x(i)},${y(q)}`).join(" ");const li=v.length-1;
   const tip=v.map((q,i)=>`<circle cx="${x(i)}" cy="${y(q)}" r="8" fill="transparent"><title>${lab[i]} · ${f(q)}</title></circle>`).join("");
-  return `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" style="width:100%;height:42px;margin:6px 0 3px"><polyline points="${pts}" fill="none" stroke="#7c5cff" stroke-width="2" stroke-linejoin="round"/><circle cx="${x(li)}" cy="${y(v[li])}" r="3" fill="#7c5cff"/>${tip}</svg>`+
+  return `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" style="width:100%;height:42px;margin:6px 0 3px"><polyline points="${pts}" fill="none" stroke="#b0863b" stroke-width="2" stroke-linejoin="round"/><circle cx="${x(li)}" cy="${y(v[li])}" r="3" fill="#b0863b"/>${tip}</svg>`+
     `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);gap:6px"><span>${lab[0]}→${lab[li]}</span><span>mín ${f(mn)} · máx ${f(mx)}</span></div>`;}
 /* ===== Gráfico de linha INTERATIVO: hover no ponto mostra data · valor ===== */
 let CHARTID=0; const ICHARTS={}; let ICACTIVE=null;
@@ -449,12 +449,12 @@ function iChart(v,lab,fmtFn,opts){
   const X=i=>pad+i*(w-2*pad)/(v.length-1||1),Y=q=>ht-pad-(q-mn)/rng*(ht-2*pad);
   const pts=v.map((q,i)=>`${X(i)},${Y(q)}`).join(" ");
   const id="ic"+(++CHARTID);ICHARTS[id]={v,lab,f,X,Y,w,n:v.length};
-  const area=opts.area?`<defs><linearGradient id="${id}g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7c5cff" stop-opacity=".30"/><stop offset="1" stop-color="#7c5cff" stop-opacity="0"/></linearGradient></defs><polygon points="${pad},${ht-pad} ${pts} ${X(v.length-1)},${ht-pad}" fill="url(#${id}g)"/>`:"";
+  const area=opts.area?`<defs><linearGradient id="${id}g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#b0863b" stop-opacity=".30"/><stop offset="1" stop-color="#b0863b" stop-opacity="0"/></linearGradient></defs><polygon points="${pad},${ht-pad} ${pts} ${X(v.length-1)},${ht-pad}" fill="url(#${id}g)"/>`:"";
   const svgh=opts.svgh||(opts.area?130:46);
   return `<div class="ichart" data-id="${id}" style="position:relative">`+
     `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" style="width:100%;height:${svgh}px;display:block;overflow:visible"><rect x="0" y="0" width="${w}" height="${ht}" fill="transparent"/>${area}`+
-    `<polyline points="${pts}" fill="none" stroke="#7c5cff" stroke-width="${opts.area?2.5:2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`+
-    `<line class="ic-vline" y1="0" y2="${ht}" stroke="#7c5cff" stroke-opacity=".45" stroke-width="1" vector-effect="non-scaling-stroke" style="display:none"/>`+
+    `<polyline points="${pts}" fill="none" stroke="#b0863b" stroke-width="${opts.area?2.5:2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`+
+    `<line class="ic-vline" y1="0" y2="${ht}" stroke="#b0863b" stroke-opacity=".45" stroke-width="1" vector-effect="non-scaling-stroke" style="display:none"/>`+
     `<circle class="ic-dot" r="4" fill="#c9a24a" stroke="#0a0812" stroke-width="1.5" style="display:none"/></svg>`+
     `<div class="ic-tip" style="position:absolute;display:none;pointer-events:none;background:var(--card2);border:1px solid var(--gold);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;color:var(--txt);white-space:nowrap;transform:translateX(-50%);top:-6px;z-index:6;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>`+
     `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:3px"><span>${lab[0]}→${lab[v.length-1]}</span><span>mín ${f(mn)} · máx ${f(mx)}</span></div>`+
@@ -503,7 +503,7 @@ function ckCard(icon,title,big,sub,extra,tab){
 function renderCockpit(){
   const host=$("#cockpit");if(!host)return;const cards=[];const h=histArr();
   if(h.length>=2){const v=h.map(x=>x.followers),last=v[v.length-1],d7=last-v[Math.max(0,v.length-8)];
-    cards.push(ckCard("📈","Seguidores",fmt(last),`${d7>=0?"+":""}${fmt(d7)} em 7 dias`,miniLine(v,"#7c5cff"),"history"));}
+    cards.push(ckCard("📈","Seguidores",fmt(last),`${d7>=0?"+":""}${fmt(d7)} em 7 dias`,miniLine(v,"#b0863b"),"history"));}
   const fb=((B.windsor&&B.windsor.sources)||[]).find(s=>s.source==="facebook");
   if(fb){const t=fb.totais||{};const cpr=(t.results>0&&t.spend>0)?money(t.spend/t.results):null;const ver=B.ads&&B.ads.ai&&B.ads.ai.veredito;
     cards.push(ckCard("💸","Meta Ads",cpr||money(t.spend||0),cpr?"custo por resultado · ~28d":"investido · ~28d",ver?`<div style="margin-top:8px">${pill_(ver.split(/[.;:—-]/)[0].trim().slice(0,30),vKind(ver))}</div>`:"","ads"));}
@@ -586,7 +586,7 @@ function renderGestao(){
   const host=$("#gestaoBody");if(!host)return;
   const board=gLoad();
   let h=`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="gNew" placeholder="Escreva uma ação manual e adicione ao quadro…" onkeydown="if(event.key==='Enter')gAddManual()" style="flex:1;min-width:200px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--txt);font-size:14px"><button onclick="gAddManual()" style="background:var(--acc);color:#fff;border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer">+ Adicionar</button></div></div>`;
-  h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">`+GFRENTES.map(([k,l])=>{const n=k==="tudo"?board.length:board.filter(t=>gFrente(t.src)===k).length;return `<button onclick="gSetFilter('${k}')" style="cursor:pointer;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid ${gFilter===k?'var(--acc)':'var(--line)'};color:${gFilter===k?'var(--acc)':'var(--mut)'};background:${gFilter===k?'rgba(124,92,255,.10)':'transparent'}">${l}${n?` <b>${n}</b>`:""}</button>`;}).join("")+`</div>`;
+  h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">`+GFRENTES.map(([k,l])=>{const n=k==="tudo"?board.length:board.filter(t=>gFrente(t.src)===k).length;return `<button onclick="gSetFilter('${k}')" style="cursor:pointer;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid ${gFilter===k?'var(--acc)':'var(--line)'};color:${gFilter===k?'var(--acc)':'var(--mut)'};background:${gFilter===k?'rgba(176,134,59,.10)':'transparent'}">${l}${n?` <b>${n}</b>`:""}</button>`;}).join("")+`</div>`;
   const items=gSorted();
   const c={todo:0,doing:0,done:0};items.forEach(t=>c[t.status]=(c[t.status]||0)+1);
   h+=`<div class="sectitle" style="margin-top:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">📋 Tarefas`+
@@ -662,7 +662,7 @@ function renderPosts(k){if(k===sk)sd*=-1;else{sk=k;sd=-1;}
 function renderAudience(){const c=STATE.demo.city||[];
   if(c.length){const mx=c[0].v;$("#cities").innerHTML=c.slice(0,10).map(x=>`<div class="hbar-row"><span class="lbl" title="${x.k}">${x.k.split(",")[0]}</span><span class="bar"><span style="width:${x.v/mx*100}%"></span></span><span class="v">${fmt(x.v)}</span></div>`).join("");}
   else $("#cities").innerHTML=`<div class="empty">Sem dados.</div>`;
-  const g=STATE.demo.gender||[];if(g.length){const map={M:"Homens",F:"Mulheres",U:"N/D"},col={M:"#7c5cff",F:"#c9a24a",U:"#6b6480"},tot=g.reduce((s,x)=>s+x.v,0);
+  const g=STATE.demo.gender||[];if(g.length){const map={M:"Homens",F:"Mulheres",U:"N/D"},col={M:"#b0863b",F:"#8a7bb0",U:"#b9bcc4"},tot=g.reduce((s,x)=>s+x.v,0);
     $("#gender").innerHTML=`<div class="donut-wrap">${donut(g.map(x=>({v:x.v,c:col[x.k]||"#888"})))}<div class="legend">${g.map(x=>`<div><span class="dot" style="background:${col[x.k]||'#888'}"></span>${map[x.k]||x.k} — <b>${pct(x.v/tot*100)}</b></div>`).join("")}</div></div>`;}
   else $("#gender").innerHTML=`<div class="empty">Sem dados.</div>`;
   const ag=STATE.demo.age||[];if(ag.length){const o=["13-17","18-24","25-34","35-44","45-54","55-64","65+"],s=[...ag].sort((a,b)=>o.indexOf(a.k)-o.indexOf(b.k)),mx=Math.max(...s.map(x=>x.v));
@@ -670,7 +670,7 @@ function renderAudience(){const c=STATE.demo.city||[];
   else $("#age").innerHTML=`<div class="empty">Sem dados.</div>`;}
 function donut(segs){const tot=segs.reduce((s,x)=>s+x.v,0)||1;let off=0;const r=42,c=2*Math.PI*r;
   const ci=segs.map(s=>{const len=s.v/tot*c,el=`<circle r="${r}" cx="60" cy="60" fill="none" stroke="${s.c}" stroke-width="16" stroke-dasharray="${len} ${c-len}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"/>`;off+=len;return el;}).join("");
-  return`<svg width="120" height="120" viewBox="0 0 120 120">${ci}<circle r="30" cx="60" cy="60" fill="#11141c"/></svg>`;}
+  return`<svg width="120" height="120" viewBox="0 0 120 120">${ci}<circle r="30" cx="60" cy="60" fill="#ffffff"/></svg>`;}
 
 /* ---- goals ---- */
 function getGoals(){try{return JSON.parse(localStorage.getItem(LS_GOALS))||[];}catch{return[];}}
@@ -692,7 +692,7 @@ function renderGoals(){const goals=getGoals();
     const projDate=isFinite(projDays)?new Date(today.getTime()+projDays*864e5):null;
     let st,sc;if(done){st="✅ Concluída";sc="done";}else if(rate<=0){st="Sem avanço";sc="behind";}
     else if(projDays<=daysLeft){st="🚀 Adiantado";sc="ahead";}else if(projDays<=daysLeft*1.15){st="No ritmo";sc="ontrack";}else{st="⚠️ Atrasado";sc="behind";}
-    const col=done?"linear-gradient(90deg,#7c5cff,#c9a24a)":sc==="behind"?"#ff5c7a":sc==="ahead"?"#2ecc71":"linear-gradient(90deg,#7c5cff,#c9a24a)";
+    const col=done?"linear-gradient(90deg,#b0863b,#c9a24a)":sc==="behind"?"#ff5c7a":sc==="ahead"?"#2ecc71":"linear-gradient(90deg,#b0863b,#c9a24a)";
     return`<div class="goal"><div class="gh"><div><div class="gname">${mLabel(g.metric)} → ${fmt(target)}</div>
       <div class="gmeta">Prazo: ${dl.toLocaleDateString("pt-BR")} · ${daysLeft} dias restantes</div></div>
       <div style="text-align:right"><div class="pct">${pct(prog)}</div><span class="gstatus ${sc}">${st}</span></div></div>
@@ -711,7 +711,7 @@ function renderHistChart(){
   if(h.length<2){host.innerHTML=`<div class="empty">O gráfico aparece a partir do 2º dia coletado pelo robô.</div>`;return;}
   const cur=HMETRICS.find(m=>m[0]===histMetric)||HMETRICS[0];
   const v=h.map(x=>x[histMetric]||0),l=h.map(x=>String(x.date).slice(5));
-  let out=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">`+HMETRICS.map(m=>`<button onclick="setHistMetric('${m[0]}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${histMetric===m[0]?'var(--acc)':'var(--line)'};color:${histMetric===m[0]?'var(--acc)':'var(--mut)'};background:${histMetric===m[0]?'rgba(124,92,255,.10)':'transparent'}">${m[1]}</button>`).join("")+`</div>`;
+  let out=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">`+HMETRICS.map(m=>`<button onclick="setHistMetric('${m[0]}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${histMetric===m[0]?'var(--acc)':'var(--line)'};color:${histMetric===m[0]?'var(--acc)':'var(--mut)'};background:${histMetric===m[0]?'rgba(176,134,59,.10)':'transparent'}">${m[1]}</button>`).join("")+`</div>`;
   out+=iChart(v,l,fmt,{area:true});
   host.innerHTML=out;
 }
@@ -907,7 +907,7 @@ function adsKpiCards(A,p){
   }).join("")+`</div>`;
 }
 const CAMP_ACAO={escalar:["⬆️ Escalar","#2ecc71"],manter:["✅ Manter","var(--mut)"],observar:["👀 Observar","#f1c40f"],
-  cortar_orcamento:["✂️ Cortar orçam.","#e67e22"],pausar:["⏸️ Pausar","#ff5c7a"],revisar_criativo:["🎨 Criativo","#7c5cff"],revisar_publico:["🎯 Público","#7c5cff"]};
+  cortar_orcamento:["✂️ Cortar orçam.","#e67e22"],pausar:["⏸️ Pausar","#ff5c7a"],revisar_criativo:["🎨 Criativo","#b0863b"],revisar_publico:["🎯 Público","#b0863b"]};
 function renderCampaigns(A){
   const C=A.campaigns||[]; if(!C.length) return "";
   const ai=A.campaignsAI; const prop={};
@@ -1000,7 +1000,7 @@ function renderMultiChart(){
   const metrics=mwMetricsAvail(srcs);
   if(!metrics.length){host.innerHTML="";return;}
   if(!mwMetric||!metrics.includes(mwMetric)) mwMetric=metrics.includes("reach")?"reach":(metrics.includes("spend")?"spend":metrics[0]);
-  let out=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">`+metrics.slice(0,8).map(k=>`<button onclick="setMwMetric('${k}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${mwMetric===k?'var(--acc)':'var(--line)'};color:${mwMetric===k?'var(--acc)':'var(--mut)'};background:${mwMetric===k?'rgba(124,92,255,.10)':'transparent'}">${WLAB[k]||k}</button>`).join("")+`</div>`;
+  let out=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">`+metrics.slice(0,8).map(k=>`<button onclick="setMwMetric('${k}')" style="cursor:pointer;font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid ${mwMetric===k?'var(--acc)':'var(--line)'};color:${mwMetric===k?'var(--acc)':'var(--mut)'};background:${mwMetric===k?'rgba(176,134,59,.10)':'transparent'}">${WLAB[k]||k}</button>`).join("")+`</div>`;
   out+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">`;
   for(const s of srcs){
     const serie=s.serie||[];if(!serie.some(d=>d[mwMetric]!=null))continue;
